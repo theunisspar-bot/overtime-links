@@ -427,9 +427,9 @@ const HISTORY=buildHistory();
 const TONIGHT={date:new Date().toISOString().slice(0,10), vehicles:[]};
 
 /* ---------- tabs ---------- */
-$$("nav button").forEach(b=>b.addEventListener("click",()=>{
-  $$("nav button").forEach(x=>x.setAttribute("aria-selected", x===b));
-  $$("main section").forEach(s=>s.hidden=true);
+$$$("nav button").forEach(b=>b.addEventListener("click",()=>{
+  $$$("nav button").forEach(x=>x.setAttribute("aria-selected", x===b));
+  $$$("main section").forEach(s=>s.hidden=true);
   $("#tab-"+b.dataset.tab).hidden=false;
   if(b.dataset.tab==="tonight") drawTonight();
   if(b.dataset.tab==="period") drawPeriod();
@@ -491,13 +491,13 @@ let ROLE="guard";
 function applyRole(){
   const hrOnly=["tonight","period","stmt","report","cards"];
   const isHR = ROLE!=="guard";
-  $("nav button").forEach(b=>{
+  $$("nav button").forEach(b=>{
     if(hrOnly.indexOf(b.dataset.tab)>=0) b.style.display = isHR ? "" : "none";
   });
   const gv=$("#guardVeh"); if(gv) gv.hidden = isHR;
   if(!isHR){
-    $("nav button").forEach(b=>b.setAttribute("aria-selected", b.dataset.tab==="board"));
-    $("main section").forEach(x=>x.hidden = x.id!=="tab-board");
+    $$("nav button").forEach(b=>b.setAttribute("aria-selected", b.dataset.tab==="board"));
+    $$("main section").forEach(x=>x.hidden = x.id!=="tab-board");
   }
 }
 document.addEventListener("click",function(e){
@@ -908,7 +908,7 @@ function drawTonight(){
     +kpi(R(cost-rec),"carried by the store","bad")
     +kpi(Math.round(100*rec/cost)+"%","of the cost recovered", rec/cost<0.5?"bad":"good");
   $("#tonightVeh").innerHTML=vs.map(vehStrip).join("");
-  $("#tonightVeh .reopen").forEach(b=>b.addEventListener("click",()=>reopenVehicle(+b.dataset.i)));
+  $$("#tonightVeh .reopen").forEach(b=>b.addEventListener("click",()=>reopenVehicle(+b.dataset.i)));
   const gaps=vs.reduce((a,v)=>a+Math.max(0,v.gap||0),0);
   const spare=vs.filter(v=>v.riders.length<CAP*0.6).length;
   let flags="";
@@ -1107,8 +1107,8 @@ function reopenVehicle(i){
   current = {dir:v.dir, veh:v.veh, aboard:v.riders.slice(), vid:v.vid};
   $("#dir").value=v.dir;
   $("#veh").value=v.veh;
-  $("nav button").forEach(b=>b.setAttribute("aria-selected", b.dataset.tab==="board"));
-  $("main section").forEach(x=>x.hidden=true);
+  $$("nav button").forEach(b=>b.setAttribute("aria-selected", b.dataset.tab==="board"));
+  $$("main section").forEach(x=>x.hidden=true);
   $("#tab-board").hidden=false;
   drawBoard();
   flash("Vehicle "+v.veh+" reopened \u2014 add the person, then send it again");
