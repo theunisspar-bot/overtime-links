@@ -131,6 +131,17 @@ td{text-align:right;padding:8px;border-bottom:1px solid #17293B;font-variant-num
   .cardgrid{grid-template-columns:repeat(4,1fr)}
 }
 .note{color:var(--dim);font-size:12.5px;margin-top:10px}
+.dfield{position:relative;display:inline-flex;align-items:center;gap:4px}
+.dfield .dtext{width:118px;font-variant-numeric:tabular-nums}
+.dfield .dcal{cursor:pointer;line-height:1;padding:6px 8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--text)}
+.dfield .diso{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
+.gveh{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:9px 0;border-bottom:1px solid var(--line)}
+.gveh .sent{color:var(--ok);font-size:12px} .gveh span{color:var(--dim);font-size:13px}
+#rOut table{width:100%;border-collapse:collapse;margin-top:18px;font-size:13.5px}
+#rOut th,#rOut td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}
+#rOut th{color:var(--dim);font-weight:600}
+#rOut td.num,#rOut th.num{text-align:right;font-variant-numeric:tabular-nums}
+@media print{ body{background:#fff;color:#000} nav,.ctl,.btn{display:none!important} }
 #gate{position:fixed;inset:0;background:var(--ink);z-index:90;display:grid;place-items:center;padding:24px}
 .gate-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px 28px;max-width:420px;text-align:center}
 .gate-card h2{font-size:20px;margin:0 0 8px}
@@ -167,6 +178,7 @@ td{text-align:right;padding:8px;border-bottom:1px solid #17293B;font-variant-num
     <button role="tab" aria-selected="false" data-tab="tonight">Tonight</button>
     <button role="tab" aria-selected="false" data-tab="period">The pattern</button>
     <button role="tab" aria-selected="false" data-tab="stmt">Staff statement</button>
+    <button role="tab" aria-selected="false" data-tab="report">Reports</button>
     <button role="tab" aria-selected="false" data-tab="cards">Print cards</button>
   </nav>
 </header>
@@ -212,6 +224,11 @@ td{text-align:right;padding:8px;border-bottom:1px solid #17293B;font-variant-num
     <p class="note">Anyone added this way is marked <b style="color:var(--cool)">no card</b> in the record, so forgotten cards are visible as a pattern.</p>
   </div>
 </section>
+
+  <div id="guardVeh" class="panel" style="margin-top:18px" hidden>
+    <h3 style="margin:0 0 10px;font-size:15px">Vehicles that have pulled off tonight</h3>
+    <div id="guardVehList"></div>
+  </div>
 
 <!-- ============ TONIGHT ============ -->
 <section id="tab-tonight" hidden>
@@ -262,12 +279,40 @@ td{text-align:right;padding:8px;border-bottom:1px solid #17293B;font-variant-num
 </section>
 
 <!-- ============ CARDS ============ -->
+<section id="tab-report" hidden>
+  <h2>Reports</h2>
+  <p class="lede">Any stretch of nights — a week, a pay period, a month. What went out, what it cost, and how much came back.</p>
+  <div class="panel" style="margin-bottom:16px">
+    <div class="ctl" style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+      <label>From <span class="dfield">
+        <input type="text" class="dtext" id="rfromT" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10">
+        <button type="button" class="dcal" id="rfromC" aria-label="Open calendar">&#128197;</button>
+        <input type="date" class="diso" id="rfromI" tabindex="-1" aria-hidden="true"></span></label>
+      <label>To <span class="dfield">
+        <input type="text" class="dtext" id="rtoT" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10">
+        <button type="button" class="dcal" id="rtoC" aria-label="Open calendar">&#128197;</button>
+        <input type="date" class="diso" id="rtoI" tabindex="-1" aria-hidden="true"></span></label>
+      <button class="btn btn-go" id="runReport">Run</button>
+      <button class="btn btn-quiet" id="rWeek">This week</button>
+      <button class="btn btn-quiet" id="rPeriod">This pay period</button>
+      <button class="btn btn-quiet" id="rCsv">Download CSV</button>
+    </div>
+    <p class="note" id="rNote">Pick a range and press Run.</p>
+  </div>
+  <div id="rKpis" class="kpis"></div>
+  <div id="rOut"></div>
+</section>
+
 <section id="tab-cards" hidden>
   <h2>Cards to hand out</h2>
   <p class="lede">For the demonstration these are printed QR codes. In use they would be tap cards, which are faster in the dark and cannot be photographed off someone else's phone.</p>
   <div class="row noprint" style="margin-bottom:14px">
     <label class="field"><span>Department</span><select id="cardDept"></select></label>
-    <button class="btn btn-go" id="printCards">⤓ Download the card sheet</button><button class="btn" id="viewCards">Open in a tab</button>
+    <label style="display:block;margin-bottom:12px">Or one person who has lost a card
+  <input type="text" id="cardFind" placeholder="name or employee code" style="display:block;margin-top:6px;max-width:320px">
+  <span id="cardHits" class="note"></span>
+</label>
+<button class="btn btn-go" id="printCards">⤓ Download the card sheet</button><button class="btn" id="viewCards">Open in a tab</button>
   </div>
   <div class="cardgrid" id="cardGrid"></div>
 </section>
@@ -398,7 +443,18 @@ for(let i=1;i<=6;i++){ const o=document.createElement("option"); o.value=i; o.te
 $("#dir").addEventListener("change",e=>{ current.dir=e.target.value; drawBoard(); });
 $("#veh").addEventListener("change",e=>{ current.veh=+e.target.value; drawBoard(); });
 
+function drawGuardVeh(){
+  const box=$("#guardVehList"); if(!box) return;
+  const vs=TONIGHT.vehicles;
+  box.innerHTML = vs.length
+    ? vs.map((v,i)=>'<div class="gveh"><b>Vehicle '+(v.veh||i+1)+'</b> <span>'+esc(v.dir)+'</span>'
+        +'<span class="num">'+v.riders.length+' aboard</span>'
+        +'<span class="sent">sent '+esc(v.sent||"")+'</span>'
+        +'<button class="btn btn-quiet reopen" data-i="'+i+'" style="padding:4px 10px;font-size:11.5px">Reopen</button></div>').join("")
+    : '<div class="note">No vehicle has pulled off yet tonight.</div>';
+}
 function drawBoard(){
+  drawGuardVeh();
   const n=current.aboard.length;
   $("#aboard").textContent=n;
   $("#aboardOf").textContent = n===0 ? "of "+CAP+" seats · nobody aboard yet"
@@ -431,6 +487,24 @@ function flash(msg,bad){
   h.style.display="block"; clearTimeout(flashT);
   flashT=setTimeout(()=>h.style.display="none",1800);
 }
+let ROLE="guard";
+function applyRole(){
+  const hrOnly=["tonight","period","stmt","report","cards"];
+  const isHR = ROLE!=="guard";
+  $("nav button").forEach(b=>{
+    if(hrOnly.indexOf(b.dataset.tab)>=0) b.style.display = isHR ? "" : "none";
+  });
+  const gv=$("#guardVeh"); if(gv) gv.hidden = isHR;
+  if(!isHR){
+    $("nav button").forEach(b=>b.setAttribute("aria-selected", b.dataset.tab==="board"));
+    $("main section").forEach(x=>x.hidden = x.id!=="tab-board");
+  }
+}
+document.addEventListener("click",function(e){
+  const b=e.target.closest && e.target.closest(".reopen");
+  if(b) reopenVehicle(+b.dataset.i);
+});
+
 /* ---------- access key ---------- */
 /* The page itself holds no staff details. It asks the sheet for them, and the
    sheet only answers a link that carries a valid key. A copied address with no
@@ -488,6 +562,8 @@ async function unlock(){
     const data=await _jsonp(apiUrl()+"?api=roster&k="+encodeURIComponent(k)+"&store="+encodeURIComponent(STORE)+"&callback="+cb, cb, 20000);
     if(!data||!data.ok){ gateSay("That link is not valid any more. Ask the HR office for a new one."); showRetry(true); return false; }
     saveKey(k);
+    ROLE = String(d.role||"guard").toLowerCase();
+    applyRole();
     STAFF=(data.staff||[]).map(r=>[r.code,r.name,r.dept]);
     STAFF.forEach(x=>byCode[x[0]]={code:x[0],name:x[1],dept:x[2]});
     RIDERS=(data.staff||[]).filter(r=>r.dir).map(r=>({code:r.code,name:r.name,dept:r.dept,area:r.dir}));
@@ -909,6 +985,119 @@ function drawPeriod(){
     }).join("");
 }
 
+
+/* ================= Reports (HR) ================= */
+function isoToDMY(iso){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(iso||"")) return "";
+  const p=iso.split("-"); return p[2]+"/"+p[1]+"/"+p[0];
+}
+function dmyToIso(v){
+  const m=String(v||"").trim().match(/^(\d{1,2})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{2,4})$/);
+  if(!m) return "";
+  let d=+m[1], mo=+m[2], y=+m[3];
+  if(y<100) y+=2000;
+  if(mo<1||mo>12||d<1||d>31) return "";
+  const dt=new Date(y,mo-1,d);
+  if(dt.getFullYear()!==y||dt.getMonth()!==mo-1||dt.getDate()!==d) return "";
+  return y+"-"+("0"+mo).slice(-2)+"-"+("0"+d).slice(-2);
+}
+function initDateField(txt,cal,iso,onChange){
+  function push(v){ iso.value=v; txt.value=isoToDMY(v); if(onChange) onChange(v); }
+  cal.onclick=()=>{ if(iso.showPicker) iso.showPicker(); else { iso.style.opacity=1; iso.style.width="auto"; iso.style.height="auto"; iso.style.pointerEvents="auto"; iso.focus(); } };
+  iso.onchange=()=>push(iso.value);
+  txt.onblur=()=>{ const v=dmyToIso(txt.value); if(v) push(v); else txt.value=isoToDMY(iso.value); };
+  txt.onkeydown=e=>{ if(e.key==="Enter"){ e.preventDefault(); txt.blur(); } };
+  return { get:()=>iso.value, set:push };
+}
+let RFROM=null, RTO=null, RREPORT=null, CARDONE=null;
+function shiftIso(iso, days){
+  const d=new Date(iso+"T00:00:00"); d.setDate(d.getDate()+days);
+  return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
+}
+function periodStartIso(per, store){
+  const p=per.split("-").map(Number);
+  const d=new Date(p[0], p[1]-2, store==="CW" ? 20 : 23);
+  return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
+}
+async function fetchTrips(from, to){
+  const cb="__rp"+Math.random().toString(36).slice(2);
+  const r=await _jsonp(apiUrl()+"?api=trips&store="+encodeURIComponent(STORE)
+    +"&from="+from+"&to="+to+"&callback="+cb, cb, 25000);
+  return r.rows||[];
+}
+async function runReport(){
+  const from=RFROM.get(), to=RTO.get();
+  if(!from||!to){ $("#rNote").textContent="Both dates are needed."; return; }
+  if(from>to){ $("#rNote").textContent="The first date must come before the second."; return; }
+  $("#rNote").textContent="Reading the sheet\u2026";
+  $("#rKpis").innerHTML=""; $("#rOut").innerHTML="";
+  let rows;
+  try{ rows=await fetchTrips(from,to); }
+  catch(e){ $("#rNote").textContent="Could not reach the office system. "+e.message; return; }
+  const nights={}, vehicles={}, byDir={}, byDay={};
+  rows.forEach(r=>{
+    const dt=String(r["Date"]), code=String(r["Employee Code"]), dir=String(r["Direction"]||"\u2014");
+    nights[dt+"|"+code]=1;
+    vehicles[dt+"|"+String(r["Vehicle"])]=1;
+    byDir[dir]=(byDir[dir]||0)+1;
+    byDay[dt]=(byDay[dt]||0)+1;
+  });
+  const trips=Object.keys(nights).length, vehs=Object.keys(vehicles).length;
+  const cost=vehs*COST, rec=trips*FARE, pct=cost?Math.round(100*rec/cost):0;
+  RREPORT={from,to,trips,vehs,cost,rec,pct,byDir,byDay};
+  const nn=Object.keys(byDay).length;
+  $("#rNote").textContent=isoToDMY(from)+" to "+isoToDMY(to)+" \u00b7 "+nn+" night"+(nn===1?"":"s")+" with a vehicle out";
+  $("#rKpis").innerHTML =
+      kpi(String(vehs),"vehicles sent")
+    + kpi(String(trips),"person-nights carried")
+    + kpi(R(cost),"billed by the operator","bad")
+    + kpi(R(rec),"recovered at "+R(FARE)+" a head","good")
+    + kpi(R(cost-rec),"carried by the store","bad")
+    + kpi(pct+"%","of the cost recovered", pct<50?"bad":"good");
+  const dirRows=Object.keys(byDir).sort((a,b)=>byDir[b]-byDir[a]).map(k=>
+    '<tr><td>'+esc(k)+'</td><td class="num">'+byDir[k]+'</td><td class="num">'+R(byDir[k]*FARE)+'</td></tr>').join("");
+  const dayRows=Object.keys(byDay).sort().map(k=>
+    '<tr><td>'+isoToDMY(k)+'</td><td class="num">'+byDay[k]+'</td><td class="num">'+R(byDay[k]*FARE)+'</td></tr>').join("");
+  $("#rOut").innerHTML=
+     '<h3 style="margin:22px 0 0;font-size:15px">By direction</h3>'
+    +'<table><thead><tr><th>Direction</th><th class="num">Person-nights</th><th class="num">Recovered</th></tr></thead><tbody>'+dirRows+'</tbody></table>'
+    +'<h3 style="margin:22px 0 0;font-size:15px">Night by night</h3>'
+    +'<table><thead><tr><th>Date</th><th class="num">Person-nights</th><th class="num">Recovered</th></tr></thead><tbody>'+dayRows+'</tbody></table>';
+}
+function reportCsv(){
+  if(!RREPORT){ flash("Run the report first",true); return; }
+  const L=[["Staff transport report", STORE, isoToDMY(RREPORT.from)+" to "+isoToDMY(RREPORT.to)],[],
+    ["Vehicles sent", RREPORT.vehs],["Person-nights carried", RREPORT.trips],
+    ["Billed by the operator", RREPORT.cost],["Recovered from staff", RREPORT.rec],
+    ["Carried by the store", RREPORT.cost-RREPORT.rec],["Cost recovered %", RREPORT.pct],[],
+    ["Date","Person-nights","Recovered"]];
+  Object.keys(RREPORT.byDay).sort().forEach(k=>L.push([isoToDMY(k), RREPORT.byDay[k], RREPORT.byDay[k]*FARE]));
+  L.push([]); L.push(["Direction","Person-nights","Recovered"]);
+  Object.keys(RREPORT.byDir).sort().forEach(k=>L.push([k, RREPORT.byDir[k], RREPORT.byDir[k]*FARE]));
+  const csv=L.map(r=>r.map(c=>{ const v=String(c==null?"":c); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }).join(",")).join("\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  a.download="Staff_transport_"+STORE+"_"+isoToDMY(RREPORT.from).replace(/\//g,"-")+"_to_"+isoToDMY(RREPORT.to).replace(/\//g,"-")+".csv";
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },30000);
+}
+function drawCardHits(){
+  const q=($("#cardFind").value||"").trim().toLowerCase();
+  const hits=$("#cardHits");
+  if(q.length<2){ hits.textContent=""; CARDONE=null; return; }
+  const m=STAFF.filter(x=>(x[1]+" "+x[0]).toLowerCase().indexOf(q)>=0).slice(0,6);
+  if(!m.length){ hits.textContent="Nobody by that name or code."; CARDONE=null; return; }
+  hits.innerHTML=m.map(x=>'<button class="btn btn-quiet pickcard" data-c="'+esc(x[0])+'" style="margin:6px 6px 0 0;padding:5px 10px;font-size:12px">'
+    +esc(x[1])+' <span style="color:var(--dim)">'+esc(x[0])+'</span></button>').join("");
+}
+document.addEventListener("click",function(e){
+  const b=e.target.closest && e.target.closest(".pickcard");
+  if(!b) return;
+  CARDONE=b.dataset.c;
+  const p=byCode[CARDONE];
+  $("#cardHits").innerHTML='Ready to print one card for <b>'+esc(p?p.name:CARDONE)+'</b> \u2014 press Download the card sheet.';
+});
+
 /* ---------- reopening a vehicle ---------- */
 function reopenVehicle(i){
   const v=TONIGHT.vehicles[i];
@@ -980,7 +1169,8 @@ function drawCards(){
     $("#cardDept").addEventListener("change",drawCards);
   }
   const pick=$("#cardDept").value;
-  const list=(pick? STAFF.filter(s=>s[2]===pick) : RIDERS.map(r=>[r.code,r.name,r.dept])).slice(0,60);
+  const list = CARDONE ? STAFF.filter(s=>s[0]===CARDONE)
+             : (pick? STAFF.filter(s=>s[2]===pick) : RIDERS.map(r=>[r.code,r.name,r.dept])).slice(0,60);
   const g=$("#cardGrid"); g.innerHTML="";
   list.forEach(s=>{
     const d=document.createElement("div"); d.className="qcard";
@@ -994,7 +1184,8 @@ function drawCards(){
 }
 function cardSheetHtml(){
   const pick=$("#cardDept").value;
-  const list=(pick? STAFF.filter(s=>s[2]===pick) : RIDERS.map(r=>[r.code,r.name,r.dept])).slice(0,60);
+  const list = CARDONE ? STAFF.filter(s=>s[0]===CARDONE)
+             : (pick? STAFF.filter(s=>s[2]===pick) : RIDERS.map(r=>[r.code,r.name,r.dept])).slice(0,60);
   const cards=list.map(s=>{
     const c=document.createElement("canvas");
     if(typeof QRious==="function") new QRious({element:c,value:"STAFF:"+s[0],size:420,level:"M",padding:8});
@@ -1048,6 +1239,18 @@ $("#viewCards").addEventListener("click",openCardSheet);
 $("#syncSet").addEventListener("click",apiSet);
 $("#syncNow").addEventListener("click",flush);
 $("#csvBtn").addEventListener("click",payrollCsv);
+RFROM=initDateField($("#rfromT"),$("#rfromC"),$("#rfromI"));
+RTO  =initDateField($("#rtoT"),  $("#rtoC"),  $("#rtoI"));
+(function(){ const t=TONIGHT.date, d=new Date(t+"T00:00:00");
+  RFROM.set(shiftIso(t, -((d.getDay()+6)%7))); RTO.set(t); })();
+$("#runReport").addEventListener("click",runReport);
+$("#rCsv").addEventListener("click",reportCsv);
+$("#rWeek").addEventListener("click",()=>{ const t=TONIGHT.date, d=new Date(t+"T00:00:00");
+  RFROM.set(shiftIso(t, -((d.getDay()+6)%7))); RTO.set(t); runReport(); });
+$("#rPeriod").addEventListener("click",()=>{
+  RFROM.set(periodStartIso(payPeriodOf(TONIGHT.date), STORE)); RTO.set(TONIGHT.date); runReport(); });
+$("#cardFind").addEventListener("input",drawCardHits);
+
 drawBoard(); drawSync();
 /* ask for the roster as soon as the page opens */
 (async function(){ await unlock(); })();
