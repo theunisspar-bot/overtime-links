@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Staff Transport — boarding and cost</title>
+<style>
+:root{
+  --ink:#0A1622; --panel:#102131; --panel2:#16293C; --line:#20394F;
+  --text:#EAF1F8; --dim:#839BB2; --faint:#5B7A96;
+  --taxi:#F5B301; --ok:#35B37E; --hot:#E5484D; --cool:#4C9AFF;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px); height:100%}
+body{margin:0;background:var(--ink);color:var(--text);
+  font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;min-height:100%}
+.num{font-variant-numeric:tabular-nums}
+button{font:inherit;cursor:pointer}
+a{color:var(--cool)}
+
+/* ---- masthead ---- */
+header{padding:18px 20px 0;max-width:1100px;margin:0 auto}
+.brandline{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.2px}
+.where{color:var(--dim);font-size:13px}
+nav{display:flex;gap:2px;margin:16px 0 0;border-bottom:1px solid var(--line);overflow-x:auto}
+nav button{background:none;border:0;color:var(--dim);padding:10px 15px;font-size:13.5px;font-weight:700;
+  border-bottom:2px solid transparent;white-space:nowrap}
+nav button[aria-selected=true]{color:var(--text);border-bottom-color:var(--taxi)}
+main{max-width:1100px;margin:0 auto;padding:20px}
+section[hidden]{display:none}
+
+/* ---- shared ---- */
+.row{display:flex;gap:14px;flex-wrap:wrap}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.lede{color:var(--dim);font-size:13.5px;margin:2px 0 16px;max-width:66ch}
+h2{font-size:15px;margin:0 0 2px;font-weight:800}
+h3{font-size:13px;margin:22px 0 8px;font-weight:800;color:var(--dim)}
+select,input[type=text],input[type=number]{background:var(--panel2);color:var(--text);border:1px solid var(--line);
+  border-radius:10px;padding:11px 12px;font:inherit;font-size:15px}
+select:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--taxi);outline-offset:2px}
+.btn{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:11px 16px;font-weight:700;font-size:14px}
+.btn:hover{border-color:var(--taxi)}
+.btn-go{background:var(--taxi);color:#231A00;border:0;font-weight:800}
+.btn-go:hover{filter:brightness(1.07)}
+.btn-quiet{background:none;border:1px solid var(--line);color:var(--dim)}
+
+/* ---- boarding ---- */
+.board-top{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field span{font-size:12px;color:var(--dim);font-weight:700}
+.seats{display:grid;grid-template-columns:repeat(auto-fill,minmax(34px,1fr));gap:6px;margin:14px 0 4px}
+.seat{aspect-ratio:1/1.15;border-radius:6px;background:#14273A;border:1px solid var(--line);
+  display:grid;place-items:center;font-size:11px;font-weight:800;color:#33506B}
+.seat.on{background:var(--taxi);border-color:var(--taxi);color:#231A00}
+.seat.on.late{background:var(--cool);border-color:var(--cool);color:#04203F}
+.tally{display:flex;align-items:baseline;gap:10px;margin-top:6px}
+.tally b{font-size:44px;font-weight:800;letter-spacing:-1px;line-height:1}
+.tally span{color:var(--dim);font-size:13.5px}
+.boarded{margin-top:14px;max-height:240px;overflow:auto;border-top:1px solid var(--line)}
+.boarded div{display:flex;justify-content:space-between;gap:10px;padding:8px 2px;border-bottom:1px solid #17293B;font-size:13.5px}
+.boarded .t{color:var(--dim);font-variant-numeric:tabular-nums}
+.boarded .u{color:var(--cool);font-size:11.5px;font-weight:700}
+#scanwrap{position:fixed;inset:0;background:#000;z-index:60;display:none}
+#scanwrap video{width:100%;height:100%;object-fit:cover}
+.scan-ui{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;padding:22px;
+  padding-top:calc(22px + env(safe-area-inset-top,0px))}
+.scan-frame{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(70vw,300px);aspect-ratio:1;
+  border:3px solid var(--taxi);border-radius:18px;box-shadow:0 0 0 100vmax rgba(0,0,0,.55)}
+.scan-say{background:rgba(0,0,0,.6);border-radius:10px;padding:10px 14px;font-size:14px;align-self:flex-start}
+.hit{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ok);color:#03220F;
+  padding:13px 20px;border-radius:12px;font-weight:800;z-index:70;display:none;box-shadow:0 12px 30px rgba(0,0,0,.4)}
+.hit.bad{background:var(--hot);color:#2A0405}
+
+/* ---- vehicle strips ---- */
+.veh{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--panel)}
+.veh-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.veh-head b{font-size:15px}
+.veh-head .dir{color:var(--taxi);font-weight:700;font-size:13.5px}
+.pips{display:flex;gap:3px;margin:9px 0 6px;flex-wrap:wrap}
+.pip{width:15px;height:20px;border-radius:3px;background:#16293C;border:1px solid var(--line)}
+.pip.on{background:var(--taxi);border-color:var(--taxi)}
+.veh-foot{display:flex;gap:16px;flex-wrap:wrap;color:var(--dim);font-size:12.5px}
+.veh-foot b{color:var(--text)}
+.veh.light{border-color:#4A2F12}
+.veh.light .veh-head .dir{color:var(--hot)}
+
+/* ---- kpis ---- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+.kpi b{display:block;font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1.15}
+.kpi span{display:block;color:var(--dim);font-size:12px;margin-top:3px}
+.kpi.good b{color:var(--ok)} .kpi.bad b{color:var(--hot)} .kpi.warm b{color:var(--taxi)}
+
+/* ---- tables & bars ---- */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:right;color:var(--dim);font-weight:700;font-size:12px;padding:7px 8px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:var(--panel)}
+th.l,td.l{text-align:left}
+td{text-align:right;padding:8px;border-bottom:1px solid #17293B;font-variant-numeric:tabular-nums}
+.bar{height:8px;border-radius:4px;background:#16293C;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--taxi)}
+.scroll{max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:12px}
+
+/* ---- statement ---- */
+.stmt{max-width:460px}
+.stmt .tot{font-size:38px;font-weight:800;letter-spacing:-1px}
+.trips div{display:flex;justify-content:space-between;padding:7px 2px;border-bottom:1px solid #17293B;font-size:13.5px}
+
+/* ---- cards ---- */
+.cardgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.qcard{background:#fff;color:#111;border-radius:10px;padding:10px;text-align:center}
+.qcard canvas{width:100%;height:auto;image-rendering:pixelated}
+.qcard b{display:block;font-size:12px;margin-top:6px;line-height:1.25}
+.qcard span{font-size:11px;color:#555}
+@media print{
+  body{background:#fff;color:#000}
+  header,nav,.noprint{display:none!important}
+  .cardgrid{grid-template-columns:repeat(4,1fr)}
+}
+.note{color:var(--dim);font-size:12.5px;margin-top:10px}
+#gate{position:fixed;inset:0;background:var(--ink);z-index:90;display:grid;place-items:center;padding:24px}
+.gate-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px 28px;max-width:420px;text-align:center}
+.gate-card h2{font-size:20px;margin:0 0 8px}
+.gate-card p{color:var(--dim);font-size:13.5px;margin:0 0 16px;line-height:1.5}
+.syncbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;padding:9px 13px;margin-bottom:14px;font-size:12.5px;color:var(--dim)}
+.syncbar .dot{width:9px;height:9px;border-radius:50%;background:var(--dim);flex:none}
+.syncbar .dot.on{background:var(--ok)} .syncbar .dot.queue{background:var(--taxi)} .syncbar .dot.off{background:var(--hot)}
+.syncbar #syncTxt{flex:1;min-width:170px}
+#sendwrap{position:fixed;inset:0;background:rgba(3,9,16,.78);z-index:65;display:none;place-items:center;padding:18px}
+#sendwrap .sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 22px;
+  width:100%;max-width:440px;max-height:88vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+#sendwrap .sheet h2{font-size:17px}
+.sent{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:800;border-radius:999px;padding:3px 9px}
+.sent.ok{background:#0E2E20;color:var(--ok)}
+.sent.queue{background:#2B2205;color:var(--taxi)}
+.gapbox{border-radius:10px;padding:11px 13px;font-size:13px;font-weight:600}
+.gapbox.bad{background:#2A0C0E;color:#FF9B9E;border:1px solid #4A1418}
+.gapbox.ok{background:#0E2E20;color:#7BE0B5;border:1px solid 1E4A37}
+.warnbox{border:1px solid #4A2F12;background:#1B1405;border-radius:12px;padding:12px 14px;color:#F0C766;font-size:13px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brandline">
+    <h1>Staff transport</h1>
+    <span class="where" id="where">Zevenwacht SuperSPAR · demonstration</span>
+  </div>
+  <nav role="tablist">
+    <button role="tab" aria-selected="true" data-tab="board">At the taxi</button>
+    <button role="tab" aria-selected="false" data-tab="tonight">Tonight</button>
+    <button role="tab" aria-selected="false" data-tab="period">The pattern</button>
+    <button role="tab" aria-selected="false" data-tab="stmt">Staff statement</button>
+    <button role="tab" aria-selected="false" data-tab="cards">Print cards</button>
+  </nav>
+</header>
+
+<div id="gate">
+  <div class="gate-card">
+    <h2>Staff transport</h2>
+    <p id="gateMsg">Checking your link…</p>
+    <button class="btn btn-go" onclick="unlock()">Try again</button>
+  </div>
+</div>
+
+<main>
+
+<!-- ============ BOARDING ============ -->
+<section id="tab-board">
+  <h2>Loading a vehicle</h2>
+  <p class="lede">The guard picks the direction, then scans each card as people climb in. Seats fill as they board, so an empty vehicle is visible before it pulls off rather than at month end.</p>
+
+  <div class="syncbar">
+    <span id="syncDot" class="dot"></span>
+    <span id="syncTxt">Records are kept on this device only</span>
+    <button class="btn btn-quiet" id="syncSet" style="padding:6px 11px;font-size:12px">Where records go</button>
+    <button class="btn btn-quiet" id="syncNow" style="padding:6px 11px;font-size:12px">Send now</button>
+    <button class="btn btn-quiet" id="csvBtn" style="padding:6px 11px;font-size:12px">Payroll CSV</button>
+  </div>
+
+  <div class="card">
+    <div class="board-top">
+      <label class="field"><span>Direction</span>
+        <select id="dir"></select>
+      </label>
+      <label class="field"><span>Vehicle</span>
+        <select id="veh"></select>
+      </label>
+      <button class="btn btn-go" id="scanBtn">Scan a card</button>
+      <button class="btn" id="manualBtn">No card — search by name</button>
+      <button class="btn btn-quiet" id="departBtn">Vehicle departs</button>
+    </div>
+
+    <div class="tally"><b class="num" id="aboard">0</b><span id="aboardOf">of 15 seats · nobody aboard yet</span></div>
+    <div class="seats" id="seats"></div>
+    <div class="boarded" id="boarded"></div>
+  </div>
+
+  <div id="manualWrap" class="card" style="display:none;margin-top:14px">
+    <label class="field"><span>Search staff</span>
+      <input type="text" id="manualQ" placeholder="Name or employee code" autocomplete="off">
+    </label>
+    <div class="scroll" id="manualList" style="margin-top:10px;max-height:230px"></div>
+    <p class="note">Anyone added this way is marked <b style="color:var(--cool)">no card</b> in the record, so forgotten cards are visible as a pattern.</p>
+  </div>
+</section>
+
+<!-- ============ TONIGHT ============ -->
+<section id="tab-tonight" hidden>
+  <h2>Tonight</h2>
+  <p class="lede">What each vehicle is costing against what it is carrying.</p>
+  <div class="kpis" id="tonightKpis"></div>
+  <div id="tonightVeh"></div>
+  <div id="tonightFlags"></div>
+</section>
+
+<!-- ============ PERIOD ============ -->
+<section id="tab-period" hidden>
+  <h2>The pattern</h2>
+  <p class="lede">Four weeks of nights. The operator charges per vehicle whether it is full or not, so the question is how many vehicles each direction actually needs.</p>
+  <div class="row" id="settings" style="margin-bottom:16px;align-items:flex-end"></div>
+  <div class="kpis" id="periodKpis"></div>
+  <div class="row">
+    <div class="card" style="flex:1;min-width:320px">
+      <h2>By direction</h2>
+      <div style="margin-top:10px" id="byDir"></div>
+    </div>
+    <div class="card" style="flex:1;min-width:300px">
+      <h2>By night of the week</h2>
+      <div style="margin-top:10px" id="byDow"></div>
+    </div>
+  </div>
+  <h3>Every night</h3>
+  <div class="scroll"><table id="nights"></table></div>
+</section>
+
+<!-- ============ STATEMENT ============ -->
+<section id="tab-stmt" hidden>
+  <h2>What a staff member sees</h2>
+  <p class="lede">A rider scans their own card at the HR office and sees every night charged to them, before the deduction runs.</p>
+  <div class="card stmt">
+    <div class="row" style="margin-bottom:14px">
+      <button class="btn btn-go" id="stmtScan">Scan my card</button>
+      <button class="btn" id="stmtPick">Pick a name</button>
+    </div>
+    <div id="stmtOut"></div>
+  </div>
+</section>
+
+<!-- ============ CARDS ============ -->
+<section id="tab-cards" hidden>
+  <h2>Cards to hand out</h2>
+  <p class="lede">For the demonstration these are printed QR codes. In use they would be tap cards, which are faster in the dark and cannot be photographed off someone else's phone.</p>
+  <div class="row noprint" style="margin-bottom:14px">
+    <label class="field"><span>Department</span><select id="cardDept"></select></label>
+    <button class="btn btn-go" id="printCards">⤓ Download the card sheet</button><button class="btn" id="viewCards">Open in a tab</button>
+  </div>
+  <div class="cardgrid" id="cardGrid"></div>
+</section>
+
+</main>
+
+<div id="scanwrap">
+  <video id="cam" playsinline muted></video>
+  <div class="scan-ui">
+    <div class="scan-say" id="scanSay">Hold the card in the frame</div>
+    <div class="scan-frame"></div>
+    <div>
+      <div id="scanFallback" style="display:none;flex-direction:column;gap:8px;margin-bottom:12px;max-width:340px">
+        <label class="btn btn-go" style="text-align:center">Take a photo of the card<input type="file" id="photoIn" accept="image/*" capture="environment" style="display:none"></label>
+        <button class="btn" id="scanByName">Search by name instead</button>
+        <button class="btn btn-quiet" id="copyLink">Copy this link to open in Safari</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" id="scanClose">Close</button><button class="btn" id="camFlip">↻ Switch camera</button><span id="camLabel" style="font-size:12.5px;color:#cfd8e3;background:rgba(0,0,0,.55);padding:5px 10px;border-radius:8px"></span></div>
+    </div>
+  </div>
+</div>
+<div class="hit" id="hit"></div>
+
+<div id="sendwrap">
+  <div class="sheet">
+    <h2 id="sendTitle">Send this vehicle</h2>
+    <p class="lede" id="sendSub" style="margin-bottom:14px"></p>
+    <div id="sendList" class="scroll" style="max-height:170px;margin-bottom:14px"></div>
+    <label class="field" style="margin-bottom:12px"><span>How many people are actually on the vehicle?</span>
+      <input type="number" id="headcount" min="0" max="22" inputmode="numeric">
+    </label>
+    <div id="sendGap"></div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn btn-go" id="sendGo">Send and close this vehicle</button>
+      <button class="btn btn-quiet" id="sendBack">Back</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+<script>
+const STAFF_SEED=[];
+let STAFF=[];
+/* ---------- settings ---------- */
+const AREAS=["Eersterivier","Mfuleni","Blue Downs","Delft","Khayelitsha"];
+let CAP=15;              // seats per vehicle
+let COST=620;            // what the operator charges per vehicle per night
+let FARE=17;             // what each rider contributes
+const NIGHTS=28;         // how much history the demo carries
+
+const $=s=>document.querySelector(s);
+const $$=s=>Array.from(document.querySelectorAll(s));
+const R=n=>"R"+Math.round(n).toLocaleString("en-ZA").replace(/,/g," ");
+const N1=n=>(Math.round(n*10)/10).toFixed(1);
+const DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const byCode={}; STAFF.forEach(s=>byCode[s[0]]={code:s[0],name:s[1],dept:s[2]});
+
+/* deterministic pseudo-random so the demo looks the same every time it opens */
+function rng(seed){ let a=seed>>>0; return ()=>{ a=(a+0x6D2B79F5)>>>0; let t=Math.imul(a^(a>>>15),1|a); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
+const hash=s=>{ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; };
+
+/* who rides, and to where — taken from the home address already on the employee record */
+let RIDERS=(typeof RIDERDATA!=="undefined"?RIDERDATA:[]).map(r=>({code:r[0],name:r[1],dept:r[2],area:r[3]}));
+const riderByCode={}; RIDERS.forEach(r=>riderByCode[r.code]=r);
+const NO_ADDRESS=STAFF.length-RIDERS.length;
+
+/* ---------- history ---------- */
+function buildHistory(){
+  const out=[]; const today=new Date(); today.setHours(0,0,0,0);
+  for(let d=NIGHTS-1;d>=0;d--){
+    const day=new Date(today); day.setDate(day.getDate()-d);
+    const dow=day.getDay();
+    const rnd=rng(hash("n"+day.toISOString().slice(0,10)));
+    const monthEnd=day.getDate()>=25||day.getDate()<=2;
+    let share=0.20+rnd()*0.07;                       // baseline share of riders working late
+    if(dow===5||dow===6) share+=0.16;                 // Fri & Sat busier
+    if(dow===0) share-=0.06;                          // Sundays quieter
+    if(monthEnd) share+=0.08;                         // month-end weekends
+    share=Math.max(0.1,Math.min(0.55,share));
+    const riders=RIDERS.filter(()=>rnd()<share);
+    const groups={}; AREAS.forEach(a=>groups[a]=[]);
+    riders.forEach(r=>groups[r.area].push(r));
+    let vehicles=[];
+    AREAS.forEach(a=>{
+      const list=groups[a]; if(!list.length) return;
+      // the operator sends whole vehicles; nobody counts how full they run
+      const need=Math.max(1,Math.ceil(list.length/CAP));
+      const sent=need + ((need>=2 && rnd()<0.2) ? 1 : 0);   // now and then one more than needed
+      const per=Math.ceil(list.length/sent);
+      for(let v=0;v<sent;v++){
+        const part=list.slice(v*per,(v+1)*per);
+        vehicles.push({dir:a, riders:part});
+      }
+    });
+    vehicles=vehicles.filter(v=>v.riders.length>0);
+    if(vehicles.length>6){                               // never more than six on the night
+      vehicles.sort((a,b)=>b.riders.length-a.riders.length);
+      const spill=vehicles.slice(6); vehicles=vehicles.slice(0,6);
+      spill.forEach(s=>{
+        s.riders.forEach(r=>{
+          const host=vehicles.find(v=>v.dir===s.dir&&v.riders.length<CAP)||vehicles.find(v=>v.riders.length<CAP);
+          if(host) host.riders.push(r);
+        });
+      });
+    }
+    out.push({date:day.toISOString().slice(0,10), dow, vehicles});
+  }
+  return out;
+}
+const HISTORY=buildHistory();
+const TONIGHT={date:new Date().toISOString().slice(0,10), vehicles:[]};
+
+/* ---------- tabs ---------- */
+$$("nav button").forEach(b=>b.addEventListener("click",()=>{
+  $$("nav button").forEach(x=>x.setAttribute("aria-selected", x===b));
+  $$("main section").forEach(s=>s.hidden=true);
+  $("#tab-"+b.dataset.tab).hidden=false;
+  if(b.dataset.tab==="tonight") drawTonight();
+  if(b.dataset.tab==="period") drawPeriod();
+  if(b.dataset.tab==="cards") drawCards();
+}));
+
+/* ---------- boarding ---------- */
+let current={dir:AREAS[0], veh:1, aboard:[]};
+AREAS.forEach(a=>{ const o=document.createElement("option"); o.textContent=a; $("#dir").appendChild(o); });
+for(let i=1;i<=6;i++){ const o=document.createElement("option"); o.value=i; o.textContent="Vehicle "+i; $("#veh").appendChild(o); }
+$("#dir").addEventListener("change",e=>{ current.dir=e.target.value; drawBoard(); });
+$("#veh").addEventListener("change",e=>{ current.veh=+e.target.value; drawBoard(); });
+
+function drawBoard(){
+  const n=current.aboard.length;
+  $("#aboard").textContent=n;
+  $("#aboardOf").textContent = n===0 ? "of "+CAP+" seats · nobody aboard yet"
+    : "of "+CAP+" seats · "+(CAP-n)+" empty · "+current.dir;
+  let s="";
+  for(let i=0;i<CAP;i++){
+    const p=current.aboard[i];
+    s+='<div class="seat'+(p?" on":"")+(p&&p.manual?" late":"")+'">'+(p?(i+1):"")+'</div>';
+  }
+  $("#seats").innerHTML=s;
+  $("#boarded").innerHTML=current.aboard.slice().reverse().map(p=>
+    '<div><span>'+esc(p.name)+' <span class="t">'+esc(p.code)+'</span>'+(p.manual?' <span class="u">no card</span>':'')+'</span><span class="t">'+p.time+'</span></div>'
+  ).join("");
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function board(code, manual){
+  const p=byCode[code];
+  if(!p){ flash("Card not recognised",true); return; }
+  if(current.aboard.some(x=>x.code===code)){ flash(p.name+" is already aboard",true); return; }
+  if(current.aboard.length>=CAP){ flash("That vehicle is full",true); return; }
+  const t=new Date().toTimeString().slice(0,5);
+  current.aboard.push({code,name:p.name,dept:p.dept,time:t,manual:!!manual});
+  drawBoard();
+  flash(p.name+" — seat "+current.aboard.length);
+}
+let flashT;
+function flash(msg,bad){
+  const h=$("#hit"); h.textContent=msg; h.className="hit"+(bad?" bad":"");
+  h.style.display="block"; clearTimeout(flashT);
+  flashT=setTimeout(()=>h.style.display="none",1800);
+}
+/* ---------- access key ---------- */
+/* The page itself holds no staff details. It asks the sheet for them, and the
+   sheet only answers a link that carries a valid key. A copied address with no
+   key shows nothing. */
+function urlKey(){
+  const m=location.search.match(/[?&]k=([A-Za-z0-9_-]{6,})/);
+  if(m) return m[1];
+  try{ return localStorage.getItem("tx:key")||""; }catch(e){ return ""; }
+}
+function saveKey(k){ try{ localStorage.setItem("tx:key",k); }catch(e){} }
+function forgetKey(){ try{ localStorage.removeItem("tx:key"); }catch(e){} location.href=location.pathname; }
+async function unlock(){
+  const k=urlKey();
+  const gate=$("#gate");
+  if(!k){ gateSay("This page needs the link your HR office sent you, including the part after <b>?k=</b>."); return false; }
+  gateSay("Checking…");
+  try{
+    const cb="__txStaff"+Date.now();
+    const data=await _jsonp(apiUrl()+"?api=roster&k="+encodeURIComponent(k)+"&store="+encodeURIComponent(STORE)+"&callback="+cb, cb, 20000);
+    if(!data||!data.ok){ gateSay("That link is not valid any more. Ask the HR office for a new one."); return false; }
+    saveKey(k);
+    STAFF=(data.staff||[]).map(r=>[r.code,r.name,r.dept]);
+    STAFF.forEach(x=>byCode[x[0]]={code:x[0],name:x[1],dept:x[2]});
+    RIDERS=(data.staff||[]).filter(r=>r.dir).map(r=>({code:r.code,name:r.name,dept:r.dept,area:r.dir}));
+    RIDERS.forEach(r=>riderByCode[r.code]=r);
+    if(gate) gate.style.display="none";
+    $("#who").textContent=(data.guard||"")+(data.store?" · "+data.store:"");
+    return true;
+  }catch(e){
+    gateSay("Could not reach the office system. Check the signal and try again.");
+    return false;
+  }
+}
+function gateSay(msg){ const el=$("#gateMsg"); if(el) el.innerHTML=msg; }
+
+/* ---------- where records go ---------- */
+const API_RE=/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/;
+const STORE="ZSS";
+const DEVICE=(function(){ try{ let d=localStorage.getItem("tx:device"); if(!d){ d="dev-"+Math.random().toString(36).slice(2,7); localStorage.setItem("tx:device",d);} return d; }catch(e){ return "dev"; } })();
+const GUARD=(function(){ try{ return localStorage.getItem("tx:guard")||""; }catch(e){ return ""; } })();
+function apiUrl(){ try{ const v=localStorage.getItem("tx:api")||""; return API_RE.test(v)?v:""; }catch(e){ return ""; } }
+function apiSet(){
+  const v=(prompt("Address of the Staff Transport web app.\n\nIt must end in /exec — copy it from Deploy \u203a Manage deployments in the Apps Script editor.\n\nLeave it blank to keep records on this device only.", apiUrl())||"").trim();
+  if(v && !API_RE.test(v)){ alert("That is not a web app address. It must look like\n\nhttps://script.google.com/macros/s/AKfyc.../exec\n\nThe address of the Google Sheet itself will not work."); return; }
+  try{ localStorage.setItem("tx:api", v); }catch(e){}
+  drawSync(); if(v) flush();
+}
+/* anything not yet accepted by the sheet waits here */
+function queue(){ try{ return JSON.parse(localStorage.getItem("tx:queue")||"[]"); }catch(e){ return []; } }
+function setQueue(q){ try{ localStorage.setItem("tx:queue", JSON.stringify(q)); }catch(e){} drawSync(); }
+function enqueue(bundle){ const q=queue(); q.push(bundle); setQueue(q); flush(); }
+
+let flushing=false;
+async function flush(){
+  const api=apiUrl(), q=queue();
+  if(!api || !q.length || flushing || !navigator.onLine) { drawSync(); return; }
+  flushing=true; drawSync();
+  try{
+    const res=await fetch(api,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body:JSON.stringify({bundles:q})});
+    /* Apps Script answers a cross-origin POST opaquely, so we cannot read the reply.
+       Every bundle carries an id and the script stores an id once, so a resend is harmless. */
+    setQueue([]);
+    TONIGHT.vehicles.forEach(v=>{ v.queued=false; });
+    flash(q.length===1?"Sent to the sheet":q.length+" vehicles sent to the sheet");
+  }catch(e){
+    flash("Could not reach the sheet — held on this device",true);
+  }
+  flushing=false; drawSync();
+}
+function drawSync(){
+  const api=apiUrl(), n=queue().length, dot=$("#syncDot"), txt=$("#syncTxt");
+  if(!dot) return;
+  if(!api){ dot.className="dot"; txt.textContent="Records are kept on this device only — set where they should go"; return; }
+  if(!navigator.onLine){ dot.className="dot off"; txt.textContent=n? n+" vehicle"+(n>1?"s":"")+" waiting — no signal, they will go when there is":"No signal — anything recorded now will be held"; return; }
+  if(flushing){ dot.className="dot queue"; txt.textContent="Sending…"; return; }
+  if(n){ dot.className="dot queue"; txt.textContent=n+" vehicle"+(n>1?"s":"")+" waiting to go"; return; }
+  dot.className="dot on"; txt.textContent="Everything has reached the sheet";
+}
+window.addEventListener("online",flush); window.addEventListener("offline",drawSync);
+setInterval(()=>{ if(queue().length) flush(); }, 30000);
+
+/* ---------- payroll CSV ---------- */
+function payrollCsv(){
+  const rows=[];
+  TONIGHT.vehicles.forEach(v=>v.riders.forEach(r=>rows.push({code:r.code,name:r.name,dept:r.dept,date:TONIGHT.date})));
+  if(!rows.length){ flash("Nothing recorded yet tonight",true); return; }
+  const by={};
+  rows.forEach(r=>{ const k=r.code; (by[k]||(by[k]={code:r.code,name:r.name,dept:r.dept,nights:{}})).nights[r.date]=1; });
+  const out=[["Store","Employee Code","Employee Name","Department","Nights","Amount","Pay Period"]];
+  const per=payPeriodOf(TONIGHT.date);
+  Object.values(by).sort((a,b)=>a.code<b.code?-1:1).forEach(e=>{
+    const n=Object.keys(e.nights).length;
+    out.push([STORE,e.code,e.name,e.dept,n,(n*FARE).toFixed(2),per]);
+  });
+  const csv=out.map(r=>r.map(c=>/[",\n]/.test(String(c))?'"'+String(c).replace(/"/g,'""')+'"':c).join(",")).join("\r\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  a.download="Staff_transport_deductions_"+STORE+"_"+per+".csv";
+  document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},400);
+  flash("Payroll file downloaded");
+}
+function payPeriodOf(dateStr){
+  const d=new Date(dateStr+"T00:00:00"); const start = STORE==="CW"?20:23;
+  let y=d.getFullYear(), m=d.getMonth();
+  if(d.getDate()<start){ m-=1; if(m<0){ m=11; y-=1; } }
+  let em=m+1, ey=y; if(em>11){ em=0; ey+=1; }
+  return ey+"-"+String(em+1).padStart(2,"0");
+}
+
+/* ---------- closing a vehicle off ---------- */
+$("#departBtn").addEventListener("click",openSend);
+function openSend(){
+  if(!current.aboard.length){ flash("Nobody has boarded yet",true); return; }
+  const n=current.aboard.length;
+  $("#sendTitle").textContent="Vehicle "+current.veh+" to "+current.dir;
+  $("#sendSub").textContent=n+" card"+(n===1?"":"s")+" tapped. Check the count before it pulls off — once sent, this vehicle is closed.";
+  $("#sendList").innerHTML=current.aboard.map((p,i)=>
+    '<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 12px;border-bottom:1px solid #17293B;font-size:13px">'
+    +'<span>'+(i+1)+'. '+esc(p.name)+(p.manual?' <span class="u" style="color:var(--cool);font-size:11px;font-weight:700">no card</span>':'')+'</span>'
+    +'<span class="t" style="color:var(--dim)">'+p.time+'</span></div>').join("");
+  $("#headcount").value=n;
+  drawGap();
+  $("#sendwrap").style.display="grid";
+  setTimeout(()=>$("#headcount").focus(),80);
+}
+function drawGap(){
+  const tapped=current.aboard.length;
+  const head=parseInt($("#headcount").value,10);
+  const el=$("#sendGap");
+  if(isNaN(head)||head===tapped){ el.innerHTML='<div class="gapbox ok">Every person on the vehicle has tapped.</div>'; return; }
+  if(head>tapped){
+    const d=head-tapped;
+    el.innerHTML='<div class="gapbox bad">'+d+' more '+(d===1?"person":"people")+' on the vehicle than cards tapped. '
+      +'That is '+R(d*FARE)+' not recovered tonight. Tap them before sending, or send as is and it will be flagged.</div>';
+  } else {
+    el.innerHTML='<div class="gapbox bad">'+(tapped-head)+' more cards tapped than people aboard. Someone may have tapped and not boarded.</div>';
+  }
+}
+$("#headcount").addEventListener("input",drawGap);
+$("#sendBack").addEventListener("click",()=>$("#sendwrap").style.display="none");
+$("#sendGo").addEventListener("click",()=>{
+  const head=parseInt($("#headcount").value,10);
+  const n=current.aboard.length;
+  const gap=(isNaN(head)?n:head)-n;
+  const closedAt=new Date().toTimeString().slice(0,5);
+  const vid=STORE+"-"+TONIGHT.date+"-V"+current.veh+"-"+Date.now().toString(36);
+  TONIGHT.vehicles.push({
+    dir:current.dir, veh:current.veh, riders:current.aboard.slice(),
+    headcount:isNaN(head)?n:head, gap, sent:closedAt,
+    queued:!!apiUrl() && !navigator.onLine, vid
+  });
+  enqueue({
+    vehicleId:vid, store:STORE, date:TONIGHT.date, direction:current.dir, vehicle:current.veh,
+    tapped:n, headcount:isNaN(head)?n:head, gap, closedAt, guard:GUARD, device:DEVICE,
+    trips:current.aboard.map((p,i)=>({id:vid+"-"+p.code, code:p.code, name:p.name, dept:p.dept,
+      at:p.time, how:p.manual?"searched":"card"}))
+  });
+  $("#sendwrap").style.display="none";
+  flash("Vehicle "+current.veh+" closed — "+n+" recorded"+(gap?" · "+Math.abs(gap)+" unaccounted":""), gap!==0);
+  current.aboard=[]; current.veh=Math.min(6,current.veh+1); $("#veh").value=current.veh;
+  drawBoard();
+});
+
+/* manual fallback */
+$("#manualBtn").addEventListener("click",()=>{
+  const w=$("#manualWrap"); w.style.display = w.style.display==="none" ? "block":"none";
+  if(w.style.display==="block"){ $("#manualQ").focus(); drawManual(""); }
+});
+$("#manualQ").addEventListener("input",e=>drawManual(e.target.value));
+function drawManual(q){
+  q=q.trim().toLowerCase();
+  const list=STAFF.filter(s=>!q||(s[1]+" "+s[0]).toLowerCase().includes(q)).slice(0,40);
+  $("#manualList").innerHTML=list.map(s=>
+    '<div style="display:flex;justify-content:space-between;gap:10px;padding:9px 12px;border-bottom:1px solid #17293B;cursor:pointer" onclick="board(\''+s[0]+'\',true)">'
+    +'<span>'+esc(s[1])+'</span><span class="t" style="color:var(--dim)">'+esc(s[0])+' · '+esc(s[2])+'</span></div>').join("")
+    || '<div style="padding:12px;color:var(--dim)">Nobody by that name.</div>';
+}
+
+/* ---------- camera ---------- */
+let stream=null, scanning=false, onScan=null;
+function inAppBrowser(){
+  const ua=navigator.userAgent||"";
+  if(/FBAN|FBAV|Instagram|Line\/|Twitter|WhatsApp/i.test(ua)) return true;
+  const iOS=/iPhone|iPad|iPod/.test(ua);
+  if(iOS && !/Safari/.test(ua)) return true;       // iOS web view without Safari's own chrome
+  return false;
+}
+function camFacing(){
+  try{ return localStorage.getItem("tx:cam")||"environment"; }catch(e){ return "environment"; }
+}
+async function flipCamera(){
+  const now = camFacing()==="user" ? "environment" : "user";
+  try{ localStorage.setItem("tx:cam", now); }catch(e){}
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  scanning=false;
+  await startCam();
+}
+async function startCam(){
+  const face=camFacing();
+  $("#camLabel").textContent = face==="user" ? "Front camera" : "Back camera";
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:face}}});
+  const v=$("#cam");
+  v.srcObject=stream;
+  v.style.transform = face==="user" ? "scaleX(-1)" : "none";   // a mirrored preview reads naturally
+  await v.play();
+  $("#scanSay").textContent = face==="user"
+    ? "Hold the card up to the screen"
+    : "Hold the card in the frame";
+  scanning=true; tick();
+}
+async function openScanner(handler){
+  onScan=handler;
+  const w=$("#scanwrap"); w.style.display="block";
+  $("#scanFallback").style.display="none";
+  $("#scanSay").textContent="Starting the camera…";
+  try{
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) throw new Error("no camera api");
+    await startCam();
+  }catch(e){
+    scanning=false;
+    const inApp=inAppBrowser();
+    $("#scanSay").innerHTML = inApp
+      ? "<b>This page is open inside another app.</b><br>WhatsApp, Facebook and Instagram do not let a page use the camera. Tap the <b>⋯</b> or share button at the top and choose <b>Open in Safari</b> (or Chrome), then scan again."
+      : "<b>The camera did not start.</b><br>Allow camera access for this page, or use one of the options below.";
+    $("#scanFallback").style.display="flex";
+  }
+}
+/* the scanning loop: a quick read every frame, a harder one about once a second */
+let frames=0;
+const _cv=document.createElement("canvas");
+const _cx=_cv.getContext("2d",{willReadFrequently:true});
+function tick(){
+  if(!scanning) return;
+  const v=$("#cam");
+  if(v && v.readyState===v.HAVE_ENOUGH_DATA && typeof jsQR==="function"){
+    _cv.width=v.videoWidth; _cv.height=v.videoHeight;
+    if(_cv.width && _cv.height){
+      _cx.drawImage(v,0,0,_cv.width,_cv.height);
+      const d=_cx.getImageData(0,0,_cv.width,_cv.height);
+      const hit=jsQR(d.data,d.width,d.height,{inversionAttempts:"attemptBoth"});
+      if(hit && hit.data){
+        const code=hit.data.trim().toUpperCase().replace(/^STAFF:/,"");
+        if(byCode[code]){ closeScanner(); onScan&&onScan(code); return; }
+      }
+      frames++;
+      if(frames%45===0){
+        const code=readCodeFromImage(v);
+        if(code){ closeScanner(); onScan&&onScan(code); return; }
+      }
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+/* photo fallback — works even inside an in-app browser */
+function decodeFromFile(file){
+  if(!file) return;
+  $("#scanSay").innerHTML="Reading the picture\u2026";
+  const img=new Image();
+  img.onload=()=>{
+    const code=readCodeFromImage(img);
+    URL.revokeObjectURL(img.src);
+    if(code && byCode[code]){ closeScanner(); onScan&&onScan(code); return; }
+    $("#scanSay").innerHTML="<b>No card found in that picture.</b><br>"
+      +"Hold up <b>one card on its own</b> and fill the frame with it \u2014 several cards in the same picture give the reader competing codes. "
+      +"A photograph of a screen also reads poorly; a printed card is far better. Or search by name.";
+  };
+  img.onerror=()=>{ $("#scanSay").textContent="That picture could not be read."; };
+  img.src=URL.createObjectURL(file);
+}
+
+/* Two things defeat a plain read: a photo of a screen carries the screen's own
+   pixel grid, and a picture holding several cards gives the reader competing
+   codes to lock onto. So the same picture is read at a few sizes, and then in
+   overlapping pieces so each card gets a turn on its own. */
+function _tryRead(x, c, img, sx, sy, sw, sh, max){
+  const sc = Math.min(1, max / Math.max(sw, sh));
+  c.width = Math.max(40, Math.round(sw * sc));
+  c.height = Math.max(40, Math.round(sh * sc));
+  x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high";
+  x.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  const d = x.getImageData(0, 0, c.width, c.height);
+  const hit = jsQR(d.data, d.width, d.height, {inversionAttempts:"attemptBoth"});
+  if (!hit || !hit.data) return null;
+  const code = hit.data.trim().toUpperCase().replace(/^STAFF:/, "");
+  return byCode[code] ? code : null;
+}
+function readCodeFromImage(img){
+  const c = document.createElement("canvas");
+  const x = c.getContext("2d", {willReadFrequently:true});
+  const W = img.width || img.videoWidth, H = img.height || img.videoHeight;
+  if (!W || !H || typeof jsQR !== "function") return null;
+
+  // the whole picture first, at sizes that step around screen interference
+  for (const max of [900, 600, 1600, 1200, 450]){
+    const got = _tryRead(x, c, img, 0, 0, W, H, max);
+    if (got) return got;
+  }
+  // then in overlapping pieces, middle ones first so the card being held wins
+  const steps = [0.25, 0, 0.5];
+  for (const max of [700, 450]){
+    for (const fy of steps){
+      for (const fx of steps){
+        const got = _tryRead(x, c, img, W*fx, H*fy, W*0.5, H*0.5, max);
+        if (got) return got;
+      }
+    }
+  }
+  return null;
+}
+$("#scanBtn").addEventListener("click",()=>openScanner(c=>board(c,false)));
+
+/* ---------- tonight ---------- */
+function vehStrip(v,i){
+  const n=v.riders.length, pct=Math.round(100*n/CAP);
+  const light=n<CAP*0.6;
+  let pips=""; for(let k=0;k<CAP;k++) pips+='<div class="pip'+(k<n?" on":"")+'"></div>';
+  const badge = v.sent
+    ? '<span class="sent '+(v.queued?"queue":"ok")+'">'+(v.queued?"queued "+v.sent:"sent "+v.sent)+'</span>' : '';
+  return '<div class="veh'+(light?" light":"")+'">'
+    +'<div class="veh-head"><b>Vehicle '+(v.veh||i+1)+'</b> '+badge+'<span class="dir">'+esc(v.dir)+(light?" · running light":"")+'</span></div>'
+    +'<div class="pips">'+pips+'</div>'
+    +'<div class="veh-foot"><span><b>'+n+'</b> aboard of '+CAP+'</span><span>'+pct+'% full</span>'
+    +'<span>costs <b>'+R(COST)+'</b></span><span>recovers <b>'+R(n*FARE)+'</b></span>'
+    +'<span>carries a cost of <b>'+R(n?COST/n:COST)+'</b> a head</span>'
+    +(v.gap ? '<span style="color:var(--hot)"><b>'+Math.abs(v.gap)+'</b> '+(v.gap>0?"aboard without tapping":"tapped but not aboard")+'</span>' : '')
+    +'</div></div>';
+}
+function drawTonight(){
+  const vs=TONIGHT.vehicles;
+  if(!vs.length){
+    $("#tonightKpis").innerHTML="";
+    $("#tonightVeh").innerHTML='<div class="warnbox">No vehicle has left yet tonight. Board a few people under <b>At the taxi</b> and send a vehicle away — it will appear here.</div>';
+    $("#tonightFlags").innerHTML=""; return;
+  }
+  const riders=vs.reduce((a,v)=>a+v.riders.length,0);
+  const cost=vs.length*COST, rec=riders*FARE;
+  const seats=vs.length*CAP;
+  $("#tonightKpis").innerHTML=
+     kpi(vs.length,"vehicles sent")
+    +kpi(riders,"people carried")
+    +kpi(Math.round(100*riders/seats)+"%","of the seats paid for", riders/seats<0.7?"bad":"good")
+    +kpi(R(cost),"billed by the operator","warm")
+    +kpi(R(rec),"recovered at "+R(FARE)+" a head","good")
+    +kpi(R(cost-rec),"carried by the store","bad");
+  $("#tonightVeh").innerHTML=vs.map(vehStrip).join("");
+  const gaps=vs.reduce((a,v)=>a+Math.max(0,v.gap||0),0);
+  const spare=vs.filter(v=>v.riders.length<CAP*0.6).length;
+  let flags="";
+  if(spare) flags+='<div class="warnbox" style="margin-top:6px">'+spare+' vehicle'+(spare>1?"s":"")+' left less than two thirds full. On a fixed price per vehicle, that is '+R(spare*COST)+' for seats nobody used.</div>';
+  if(gaps) flags+='<div class="warnbox" style="margin-top:10px;border-color:#4A1418;background:#1B0708;color:#FF9B9E">'+gaps+' '+(gaps===1?"person":"people")+' rode without tapping a card tonight — '+R(gaps*FARE)+' not recovered. The guard recorded the difference at the door.</div>';
+  $("#tonightFlags").innerHTML=flags;
+}
+function kpi(v,l,tone){ return '<div class="kpi'+(tone?" "+tone:"")+'"><b class="num">'+v+'</b><span>'+l+'</span></div>'; }
+
+/* ---------- the pattern ---------- */
+function drawSettings(){
+  const el=$("#settings"); if(!el || el.dataset.done) return; el.dataset.done="1";
+  el.innerHTML='<label class="field"><span>Cost per vehicle a night</span><input type="number" id="setCost" value="'+COST+'" min="0" step="10"></label>'
+    +'<label class="field"><span>Seats a vehicle</span><input type="number" id="setCap" value="'+CAP+'" min="4" max="22"></label>'
+    +'<label class="field"><span>Staff contribution</span><input type="number" id="setFare" value="'+FARE+'" min="0" step="1"></label>'
+    +'<span class="note" style="align-self:flex-end;margin:0 0 12px">Change these to your real figures and every number on this page follows.</span>';
+  ["setCost","setCap","setFare"].forEach(id=>$("#"+id).addEventListener("change",()=>{
+    COST=+$("#setCost").value||COST; CAP=Math.max(4,+$("#setCap").value||CAP); FARE=+$("#setFare").value||FARE;
+    drawPeriod(); drawBoard();
+  }));
+}
+function drawPeriod(){
+  drawSettings();
+  let veh=0, riders=0, nights=HISTORY.length;
+  const dir={}, dow={}, rows=[];
+  AREAS.forEach(a=>dir[a]={veh:0,riders:0});
+  HISTORY.forEach(n=>{
+    let nv=n.vehicles.length, nr=n.vehicles.reduce((a,v)=>a+v.riders.length,0);
+    veh+=nv; riders+=nr;
+    n.vehicles.forEach(v=>{ dir[v.dir].veh++; dir[v.dir].riders+=v.riders.length; });
+    const d=dow[n.dow]||(dow[n.dow]={veh:0,riders:0,n:0}); d.veh+=nv; d.riders+=nr; d.n++;
+    rows.push({date:n.date,dow:n.dow,veh:nv,riders:nr});
+  });
+  const seats=veh*CAP, cost=veh*COST, rec=riders*FARE;
+  const empty=seats-riders;
+  $("#periodKpis").innerHTML=
+     kpi(nights,"nights")
+    +kpi(riders,"trips taken")
+    +kpi(veh,"vehicles paid for")
+    +kpi(Math.round(100*riders/seats)+"%","of paid seats used", riders/seats<0.7?"bad":"good")
+    +kpi(R(cost),"paid to the operator","warm")
+    +kpi(R(rec),"recovered from staff","good")
+    +kpi(empty,"seats paid for and left empty","bad")
+    +kpi(R(empty/CAP*COST),"the empty seats cost","bad");
+
+  const mx=Math.max(...AREAS.map(a=>dir[a].riders),1);
+  const live={}; AREAS.forEach(a=>live[a]=RIDERS.filter(r=>r.area===a).length);
+  $("#byDir").innerHTML=AREAS.map(a=>{
+    const d=dir[a], load=d.veh? Math.round(100*d.riders/(d.veh*CAP)) : 0;
+    return '<div style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:4px">'
+      +'<b>'+esc(a)+' <span style="color:var(--dim);font-weight:400">'+live[a]+' staff live this way</span></b>'
+      +'<span style="color:'+(load<55?"var(--hot)":"var(--dim)")+'" class="num">'+d.riders+' trips · '+d.veh+' vehicles · '+load+'% full</span></div>'
+      +'<div class="bar"><i style="width:'+Math.round(100*d.riders/mx)+'%;background:'+(load<55?"var(--hot)":"var(--taxi)")+'"></i></div></div>';
+  }).join("")
+  +'<p class="note">Directions come from the home address on each employee record. '+NO_ADDRESS+' of the '+STAFF.length+' staff have no usable address on file, so they cannot be planned for in advance.</p>';
+
+  const order=[1,2,3,4,5,6,0];
+  const mxd=Math.max(...order.map(d=>dow[d]?dow[d].riders/dow[d].n:0),0.1);
+  $("#byDow").innerHTML=order.map(d=>{
+    const x=dow[d]; if(!x) return "";
+    const avg=x.riders/x.n, av=x.veh/x.n;
+    return '<div style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:4px">'
+      +'<b>'+DOW[d]+'</b><span style="color:var(--dim)" class="num">'+N1(avg)+' riders · '+N1(av)+' vehicles a night</span></div>'
+      +'<div class="bar"><i style="width:'+Math.round(100*avg/mxd)+'%"></i></div></div>';
+  }).join("");
+
+  $("#nights").innerHTML='<tr><th class="l">Night</th><th>Vehicles</th><th>Riders</th><th>Seats used</th><th>Cost</th><th>Recovered</th></tr>'
+    +rows.slice().reverse().map(r=>{
+      const load=Math.round(100*r.riders/(r.veh*CAP));
+      return '<tr><td class="l">'+DOW[r.dow]+' '+r.date.slice(8)+"/"+r.date.slice(5,7)+'</td><td>'+r.veh+'</td><td>'+r.riders+'</td>'
+        +'<td style="color:'+(load<60?"var(--hot)":load<75?"var(--taxi)":"var(--ok)")+'">'+load+'%</td>'
+        +'<td>'+R(r.veh*COST)+'</td><td>'+R(r.riders*FARE)+'</td></tr>';
+    }).join("");
+}
+
+/* ---------- statement ---------- */
+function statement(code){
+  const p=byCode[code]; if(!p){ flash("Card not recognised",true); return; }
+  const trips=[];
+  HISTORY.forEach(n=>n.vehicles.forEach(v=>{ if(v.riders.some(r=>r.code===code)) trips.push({date:n.date,dow:n.dow,dir:v.dir}); }));
+  const tot=trips.length*FARE;
+  $("#stmtOut").innerHTML=
+    '<div style="border-top:1px solid var(--line);padding-top:14px">'
+    +'<b style="font-size:17px">'+esc(p.name)+'</b> <span style="color:var(--dim)">'+esc(p.code)+' · '+esc(p.dept)+'</span>'
+    +'<div class="tot num" style="margin:10px 0 2px">'+R(tot)+'</div>'
+    +'<div style="color:var(--dim);font-size:13px;margin-bottom:14px">'+trips.length+' night'+(trips.length===1?"":"s")+' on the staff transport this period, at '+R(FARE)+' a night</div>'
+    +'<div class="trips">'+ (trips.length? trips.slice().reverse().map(t=>
+        '<div><span>'+DOW[t.dow]+' '+t.date.slice(8)+"/"+t.date.slice(5,7)+' <span style="color:var(--dim)">'+esc(t.dir)+'</span></span><span class="num">'+R(FARE)+'</span></div>').join("")
+        : '<div style="color:var(--dim)">No trips recorded this period.</div>')+'</div>'
+    +'<p class="note">Anything here that looks wrong goes to the HR office within seven days, before the deduction runs.</p></div>';
+}
+$("#stmtScan").addEventListener("click",()=>openScanner(statement));
+$("#stmtPick").addEventListener("click",()=>{
+  const r=RIDERS[Math.floor(Math.random()*RIDERS.length)];
+  statement(r.code);
+});
+
+/* ---------- cards ---------- */
+const DEPTS=Array.from(new Set(STAFF.map(s=>s[2]))).sort();
+function drawCards(){
+  if(!$("#cardDept").options.length){
+    const all=document.createElement("option"); all.value=""; all.textContent="Everyone who rides"; $("#cardDept").appendChild(all);
+    DEPTS.forEach(d=>{ const o=document.createElement("option"); o.textContent=d; $("#cardDept").appendChild(o); });
+    $("#cardDept").addEventListener("change",drawCards);
+  }
+  const pick=$("#cardDept").value;
+  const list=(pick? STAFF.filter(s=>s[2]===pick) : RIDERS.map(r=>[r.code,r.name,r.dept])).slice(0,60);
+  const g=$("#cardGrid"); g.innerHTML="";
+  list.forEach(s=>{
+    const d=document.createElement("div"); d.className="qcard";
+    const c=document.createElement("canvas"); d.appendChild(c);
+    const b=document.createElement("b"); b.textContent=s[1]; d.appendChild(b);
+    const sp=document.createElement("span"); sp.textContent=s[0]+" · "+s[2]; d.appendChild(sp);
+    g.appendChild(d);
+    if(typeof QRious==="function") new QRious({element:c,value:"STAFF:"+s[0],size:180,level:"M",padding:6});
+    else { c.width=180;c.height=40; c.getContext("2d").fillText("QR unavailable offline",6,20); }
+  });
+}
+function cardSheetHtml(){
+  const pick=$("#cardDept").value;
+  const list=(pick? STAFF.filter(s=>s[2]===pick) : RIDERS.map(r=>[r.code,r.name,r.dept])).slice(0,60);
+  const cards=list.map(s=>{
+    const c=document.createElement("canvas");
+    if(typeof QRious==="function") new QRious({element:c,value:"STAFF:"+s[0],size:420,level:"M",padding:8});
+    return '<div class="c"><img src="'+c.toDataURL("image/png")+'" alt=""><b>'+esc(s[1])+'</b><span>'+esc(s[0])+' \u00b7 '+esc(s[2])+'</span></div>';
+  }).join("");
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Staff transport cards'+(pick?" - "+pick:"")+'</title>'
+    +'<style>@page{size:A4;margin:12mm}'
+    +'body{font:13px/1.35 -apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;color:#111}'
+    +'h1{font-size:16px;margin:0 0 3mm}p.sub{color:#666;font-size:11px;margin:0 0 6mm}'
+    +'.g{display:grid;grid-template-columns:repeat(4,1fr);gap:6mm}'
+    +'.c{border:1px solid #bbb;border-radius:4mm;padding:4mm;text-align:center;break-inside:avoid;page-break-inside:avoid}'
+    +'.c img{width:100%;height:auto;display:block}'
+    +'.c b{display:block;font-size:12px;margin-top:2mm;line-height:1.2}'
+    +'.c span{display:block;font-size:10px;color:#555;margin-top:1mm}'
+    +'.noprint{margin-bottom:6mm}@media print{.noprint{display:none}}'
+    +'button{font:inherit;padding:8px 16px;border:1px solid #333;background:#f5b301;border-radius:6px;cursor:pointer;font-weight:700}'
+    +'</style></head><body>'
+    +'<div class="noprint"><button onclick="tryPrint()">Print this page</button>'
+    +'<span id="hint" style="margin-left:10px;color:#555;font-size:12px">or press \u2318P on a Mac, Ctrl+P on Windows</span></div>'
+    +'<script>function tryPrint(){ try{ window.print(); }catch(e){ } '
+    +'setTimeout(function(){ document.getElementById("hint").innerHTML='
+    +'"If nothing opened, press <b>\u2318P</b> (Mac) or <b>Ctrl+P</b> (Windows) \u2014 this page was opened by another page, so it may not be allowed to start printing on its own."; },600); }<\/script>'
+    +'<h1>Staff transport cards'+(pick?" \u2014 "+esc(pick):"")+'</h1>'
+    +'<p class="sub">Cut along the boxes. Each card is scanned when its holder boards.</p>'
+    +'<div class="g">'+cards+'</div></body></html>';
+}
+function downloadCardSheet(){
+  const html=cardSheetHtml();
+  const pick=$("#cardDept").value;
+  const name="Staff_transport_cards"+(pick?"_"+pick.replace(/[^A-Za-z0-9]+/g,"_"):"")+".html";
+  try{
+    const url=URL.createObjectURL(new Blob([html],{type:"text/html"}));
+    const a=document.createElement("a");
+    a.href=url; a.download=name;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },60000);
+    flash("Saved to Downloads \u2014 open it and press \u2318P to print");
+  }catch(e){ flash("Could not save the sheet here",true); }
+}
+function openCardSheet(){
+  const html=cardSheetHtml();
+  let w=null;
+  try{ w=window.open("","_blank"); }catch(e){}
+  if(w && w.document){ w.document.open(); w.document.write(html); w.document.close(); flash("Card sheet opened in a new tab"); return; }
+  downloadCardSheet();
+}
+$("#printCards").addEventListener("click",downloadCardSheet);
+$("#viewCards").addEventListener("click",openCardSheet);
+
+/* ---------- go ---------- */
+$("#syncSet").addEventListener("click",apiSet);
+$("#syncNow").addEventListener("click",flush);
+$("#csvBtn").addEventListener("click",payrollCsv);
+drawBoard(); drawSync();
+/* ask for the roster as soon as the page opens */
+(async function(){
+  if(!apiUrl()){ gateSay("This tablet has not been set up yet. Open <b>Where records go</b> and paste the web app address."); return; }
+  await unlock();
+})();
+
+</script>
+</body>
+</html>
