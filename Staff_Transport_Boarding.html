@@ -696,6 +696,15 @@ async function openScanner(handler){
     $("#scanFallback").style.display="flex";
   }
 }
+function closeScanner(){
+  scanning=false;
+  if(stream){ try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){} stream=null; }
+  const w=$("#scanwrap"); if(w) w.style.display="none";
+  const f=$("#scanFallback"); if(f) f.style.display="none";
+}
+$("#scanClose").addEventListener("click",closeScanner);
+$("#camFlip").addEventListener("click",flipCamera);
+
 /* the scanning loop: a quick read every frame, a harder one about once a second */
 let frames=0;
 const _cv=document.createElement("canvas");
