@@ -435,6 +435,27 @@ function flash(msg,bad){
 /* The page itself holds no staff details. It asks the sheet for them, and the
    sheet only answers a link that carries a valid key. A copied address with no
    key shows nothing. */
+/* Loads a reply from the office system by script tag, which works from any
+   address without the office system having to allow this page by name. */
+function _jsonp(url, cbName, timeoutMs){
+  return new Promise((resolve, reject)=>{
+    const sc=document.createElement("script");
+    let settled=false;
+    const done=(fn)=>{
+      if(settled) return; settled=true;
+      clearTimeout(timer);
+      try{ delete window[cbName]; }catch(e){ window[cbName]=undefined; }
+      if(sc.parentNode) sc.parentNode.removeChild(sc);
+      fn();
+    };
+    const timer=setTimeout(()=>done(()=>reject(new Error("no answer within "+Math.round(timeoutMs/1000)+" seconds"))), timeoutMs);
+    window[cbName]=data=>done(()=>resolve(data));
+    sc.onerror=()=>done(()=>reject(new Error("could not load "+url.split("?")[0])));
+    sc.src=url;
+    document.head.appendChild(sc);
+  });
+}
+
 /* the link may also carry the office address, so a fresh tablet needs no setup */
 function adoptUrlApi(){
   const m=location.search.match(/[?&]api=([^&]+)/);
@@ -471,7 +492,7 @@ async function unlock(){
     RIDERS=(data.staff||[]).filter(r=>r.dir).map(r=>({code:r.code,name:r.name,dept:r.dept,area:r.dir}));
     RIDERS.forEach(r=>riderByCode[r.code]=r);
     if(gate) gate.style.display="none";
-    $("#who").textContent=(data.guard||"")+(data.store?" · "+data.store:"");
+    const who=$("#who"); if(who) who.textContent=(data.guard||"")+(data.store?" · "+data.store:"");
     return true;
   }catch(e){
     gateSay("Could not reach the office system. Check the signal and try again.");
