@@ -3,7 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Staff Transport — boarding and cost</title>
+<title>Staff transport — scan in at the taxi</title>
+<meta name="description" content="Tap your card as you board. Zevenwacht SUPERSPAR night staff transport.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Staff transport — scan in at the taxi">
+<meta property="og:description" content="Each rider taps their card as they board, so the vehicle is counted before it pulls off.">
+<meta property="og:image" content="https://theunisspar-bot.github.io/overtime-links/transport-preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://theunisspar-bot.github.io/overtime-links/Staff_Transport_Boarding.html">
+<meta name="twitter:card" content="summary_large_image">
 <style>
 :root{
   --ink:#0A1622; --panel:#102131; --panel2:#16293C; --line:#20394F;
@@ -164,7 +173,7 @@ td{text-align:right;padding:8px;border-bottom:1px solid #17293B;font-variant-num
   <div class="gate-card">
     <h2>Staff transport</h2>
     <p id="gateMsg">Checking your link…</p>
-    <button class="btn btn-go" onclick="unlock()">Try again</button>
+    <button class="btn btn-go" onclick="unlock()">Try again</button> <button class="btn" id="gateSetup" style="display:none" onclick="gateSetApi()">Set the office address</button>
   </div>
 </div>
 
@@ -426,6 +435,13 @@ function flash(msg,bad){
 /* The page itself holds no staff details. It asks the sheet for them, and the
    sheet only answers a link that carries a valid key. A copied address with no
    key shows nothing. */
+/* the link may also carry the office address, so a fresh tablet needs no setup */
+function adoptUrlApi(){
+  const m=location.search.match(/[?&]api=([^&]+)/);
+  if(!m) return;
+  const v=decodeURIComponent(m[1]).trim();
+  if(API_RE.test(v)){ try{ localStorage.setItem("tx:api", v); }catch(e){} }
+}
 function urlKey(){
   const m=location.search.match(/[?&]k=([A-Za-z0-9_-]{6,})/);
   if(m) return m[1];
@@ -434,8 +450,15 @@ function urlKey(){
 function saveKey(k){ try{ localStorage.setItem("tx:key",k); }catch(e){} }
 function forgetKey(){ try{ localStorage.removeItem("tx:key"); }catch(e){} location.href=location.pathname; }
 async function unlock(){
+  adoptUrlApi();
   const k=urlKey();
   const gate=$("#gate");
+  if(!apiUrl()){
+    gateSay("This tablet has not been set up yet. Tap <b>Set the office address</b> below and paste the web app address your HR office gave you.");
+    showGateSetup(true);
+    return false;
+  }
+  showGateSetup(false);
   if(!k){ gateSay("This page needs the link your HR office sent you, including the part after <b>?k=</b>."); return false; }
   gateSay("Checking…");
   try{
@@ -456,6 +479,8 @@ async function unlock(){
   }
 }
 function gateSay(msg){ const el=$("#gateMsg"); if(el) el.innerHTML=msg; }
+function showGateSetup(on){ const b=$("#gateSetup"); if(b) b.style.display = on ? "inline-block" : "none"; }
+async function gateSetApi(){ apiSet(); if(apiUrl()) await unlock(); }
 
 /* ---------- where records go ---------- */
 const API_RE=/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/;
@@ -945,10 +970,7 @@ $("#syncNow").addEventListener("click",flush);
 $("#csvBtn").addEventListener("click",payrollCsv);
 drawBoard(); drawSync();
 /* ask for the roster as soon as the page opens */
-(async function(){
-  if(!apiUrl()){ gateSay("This tablet has not been set up yet. Open <b>Where records go</b> and paste the web app address."); return; }
-  await unlock();
-})();
+(async function(){ await unlock(); })();
 
 </script>
 </body>
