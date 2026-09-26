@@ -933,9 +933,14 @@ async function statement(code){
   out.innerHTML='<div style="border-top:1px solid var(--line);padding-top:14px;color:var(--dim)">Looking up '+esc(p.name)+'\u2026</div>';
   let trips=[];
   try{
-    const per=payPeriodOf(iso(new Date()));
+    const today=TONIGHT.date;
+    const per=payPeriodOf(today);
+    const pp=per.split("-").map(Number);
+    const st=new Date(pp[0], pp[1]-2, STORE==="CW" ? 20 : 23);   // the day this period opened
+    const from=st.getFullYear()+"-"+("0"+(st.getMonth()+1)).slice(-2)+"-"+("0"+st.getDate()).slice(-2);
     const cb="__txTrips"+Date.now();
-    const d=await _jsonp(apiUrl()+"?api=trips&store="+encodeURIComponent(STORE)+"&callback="+cb, cb, 20000);
+    const d=await _jsonp(apiUrl()+"?api=trips&store="+encodeURIComponent(STORE)
+      +"&from="+from+"&to="+today+"&callback="+cb, cb, 20000);
     const nights={};
     (d.rows||[]).forEach(r=>{
       if(String(r["Employee Code"])!==code) return;
