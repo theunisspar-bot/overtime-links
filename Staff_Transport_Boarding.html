@@ -135,6 +135,8 @@ td{text-align:right;padding:8px;border-bottom:1px solid #17293B;font-variant-num
 .gate-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px 28px;max-width:420px;text-align:center}
 .gate-card h2{font-size:20px;margin:0 0 8px}
 .gate-card p{color:var(--dim);font-size:13.5px;margin:0 0 16px;line-height:1.5}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--dim);display:inline-block;margin-right:7px;vertical-align:middle}
+.dot.on{background:var(--ok)} .dot.queue{background:var(--taxi)} .dot.off{background:var(--hot)}
 .syncbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);
   border-radius:12px;padding:9px 13px;margin-bottom:14px;font-size:12.5px;color:var(--dim)}
 .syncbar .dot{width:9px;height:9px;border-radius:50%;background:var(--dim);flex:none}
@@ -158,7 +160,7 @@ td{text-align:right;padding:8px;border-bottom:1px solid #17293B;font-variant-num
 <header>
   <div class="brandline">
     <h1>Staff transport</h1>
-    <span class="where" id="where">Zevenwacht SuperSPAR · demonstration</span>
+    <span id="syncDot" class="dot" title=""></span><span class="where" id="where">Zevenwacht SuperSPAR · demonstration</span>
   </div>
   <nav role="tablist">
     <button role="tab" aria-selected="true" data-tab="board">At the taxi</button>
@@ -183,14 +185,6 @@ td{text-align:right;padding:8px;border-bottom:1px solid #17293B;font-variant-num
 <section id="tab-board">
   <h2>Loading a vehicle</h2>
   <p class="lede">The guard picks the direction, then scans each card as people climb in. Seats fill as they board, so an empty vehicle is visible before it pulls off rather than at month end.</p>
-
-  <div class="syncbar">
-    <span id="syncDot" class="dot"></span>
-    <span id="syncTxt">Records are kept on this device only</span>
-    <button class="btn btn-quiet" id="syncSet" style="padding:6px 11px;font-size:12px">Where records go</button>
-    <button class="btn btn-quiet" id="syncNow" style="padding:6px 11px;font-size:12px">Send now</button>
-    <button class="btn btn-quiet" id="csvBtn" style="padding:6px 11px;font-size:12px">Payroll CSV</button>
-  </div>
 
   <div class="card">
     <div class="board-top">
@@ -223,6 +217,12 @@ td{text-align:right;padding:8px;border-bottom:1px solid #17293B;font-variant-num
 <section id="tab-tonight" hidden>
   <h2>Tonight</h2>
   <p class="lede">What each vehicle is costing against what it is carrying.</p>
+  <div class="syncbar" style="margin-bottom:16px">
+    <span id="syncTxt">Records are kept on this device only</span>
+    <button class="btn btn-quiet" id="syncNow" style="padding:6px 11px;font-size:12px">Send now</button>
+    <button class="btn btn-quiet" id="csvBtn" style="padding:6px 11px;font-size:12px">Payroll CSV</button>
+    <button class="btn btn-quiet" id="syncSet" style="padding:6px 11px;font-size:12px">Where records go</button>
+  </div>
   <div class="kpis" id="tonightKpis"></div>
   <div id="tonightVeh"></div>
   <div id="tonightFlags"></div>
@@ -540,12 +540,14 @@ async function flush(){
 }
 function drawSync(){
   const api=apiUrl(), n=queue().length, dot=$("#syncDot"), txt=$("#syncTxt");
-  if(!dot) return;
-  if(!api){ dot.className="dot"; txt.textContent="Records are kept on this device only — set where they should go"; return; }
-  if(!navigator.onLine){ dot.className="dot off"; txt.textContent=n? n+" vehicle"+(n>1?"s":"")+" waiting — no signal, they will go when there is":"No signal — anything recorded now will be held"; return; }
-  if(flushing){ dot.className="dot queue"; txt.textContent="Sending…"; return; }
-  if(n){ dot.className="dot queue"; txt.textContent=n+" vehicle"+(n>1?"s":"")+" waiting to go"; return; }
-  dot.className="dot on"; txt.textContent="Everything has reached the sheet";
+  if(!dot && !txt) return;
+  const setTxt=m=>{ if(txt) txt.textContent=m; if(dot) dot.title=m; };
+  const setDot=c=>{ if(dot) dot.className="dot"+(c?" "+c:""); };
+  if(!api){ setDot(""); setTxt("Records are kept on this device only — set where they should go"); return; }
+  if(!navigator.onLine){ setDot("off"); setTxt(n? n+" vehicle"+(n>1?"s":"")+" waiting — no signal, they will go when there is":"No signal — anything recorded now will be held"); return; }
+  if(flushing){ setDot("queue"); setTxt("Sending…"); return; }
+  if(n){ setDot("queue"); setTxt(n+" vehicle"+(n>1?"s":"")+" waiting to go"); return; }
+  setDot("on"); setTxt("Everything has reached the sheet");
 }
 window.addEventListener("online",flush); window.addEventListener("offline",drawSync);
 setInterval(()=>{ if(queue().length) flush(); }, 30000);
