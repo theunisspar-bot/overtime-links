@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Staff transport — what the nights are costing</title>
+<meta name="description" content="Reports, deductions and the recovery rate for Zevenwacht SUPERSPAR night transport.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Staff transport — what the nights are costing">
+<meta property="og:description" content="Pick any week or pay period. What went out, what it cost, what came back off payroll, and the gap.">
+<meta property="og:image" content="https://theunisspar-bot.github.io/overtime-links/transport-preview-hr.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://theunisspar-bot.github.io/overtime-links/hr.html">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+:root{--ink:#0A1622;--panel:#102131;--line:#20394F;--taxi:#F5B301;--text:#EAF1F8;--dim:#839BB2}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--ink);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px;max-width:420px;text-align:center}
+h1{font-size:20px;margin:0 0 8px}
+p{color:var(--dim);font-size:14px;margin:0 0 18px}
+a.btn{display:inline-block;background:var(--taxi);color:#231A00;text-decoration:none;font-weight:700;padding:11px 20px;border-radius:10px}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>Staff transport</h1>
+<p id="msg">Opening the HR view…</p>
+<a class="btn" id="go" href="Staff_Transport_Boarding.html">Open it</a>
+</div>
+<script>
+(function(){
+  var q = location.search || "";
+  var target = "Staff_Transport_Boarding.html" + q;
+  document.getElementById("go").href = target;
+  if (q.indexOf("k=") >= 0) { location.replace(target); }
+  else { document.getElementById("msg").textContent = "This page needs the link your HR office sent you, including the part after ?k="; }
+})();
+</script>
+</body>
+</html>
