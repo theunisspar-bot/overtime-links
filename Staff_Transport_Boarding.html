@@ -1170,8 +1170,7 @@ $("#stmtQ").addEventListener("input",()=>{
   if(q.length<2){ hits.innerHTML=""; return; }
   const m=STAFF.filter(x=>(x[1]+" "+x[0]).toLowerCase().indexOf(q)>=0).slice(0,8);
   hits.innerHTML = m.length
-    ? m.map(x=>'<button class="btn btn-quiet stmtpick" data-c="'+esc(x[0])+'" style="margin:5px 6px 0 0;padding:6px 11px;font-size:12.5px">'
-        +esc(x[1])+' <span style="color:var(--dim)">'+esc(x[0])+'</span></button>').join("")
+    ? m.map(x=>'<button class="btn btn-quiet stmtpick" data-c="'+esc(x[0])+'" style="margin:5px 6px 0 0;padding:6px 11px;font-size:12.5px">'+esc(x[1])+' <span style="color:var(--dim)">'+esc(x[0])+'</span></button>').join("")
     : '<span class="note">Nobody by that name or code.</span>';
 });
 document.addEventListener("click",function(e){
@@ -1179,9 +1178,6 @@ document.addEventListener("click",function(e){
   if(!b) return;
   $("#stmtFind").style.display="none";
   statement(b.dataset.c);
-});
-  const r=RIDERS[Math.floor(Math.random()*RIDERS.length)];
-  statement(r.code);
 });
 
 /* ---------- cards ---------- */
