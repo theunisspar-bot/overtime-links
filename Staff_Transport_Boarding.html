@@ -427,9 +427,9 @@ const HISTORY=buildHistory();
 const TONIGHT={date:new Date().toISOString().slice(0,10), vehicles:[]};
 
 /* ---------- tabs ---------- */
-$$("nav button").forEach(b=>b.addEventListener("click",()=>{
-  $$("nav button").forEach(x=>x.setAttribute("aria-selected", x===b));
-  $$("main section").forEach(s=>s.hidden=true);
+$$$("nav button").forEach(b=>b.addEventListener("click",()=>{
+  $$$("nav button").forEach(x=>x.setAttribute("aria-selected", x===b));
+  $$$("main section").forEach(s=>s.hidden=true);
   $("#tab-"+b.dataset.tab).hidden=false;
   if(b.dataset.tab==="tonight") drawTonight();
   if(b.dataset.tab==="period") drawPeriod();
@@ -572,7 +572,7 @@ async function unlock(){
     const who=$("#who"); if(who) who.textContent=(data.guard||"")+(data.store?" · "+data.store:"");
     return true;
   }catch(e){
-    gateSay("Could not reach the office system. Check the signal and try again."); showRetry(true);
+    gateSay("Could not load: "+((e&&e.message)?e.message:e)); showRetry(true); try{console.error("unlock failed",e);}catch(_){}
     return false;
   }
 }
