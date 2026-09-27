@@ -562,7 +562,7 @@ async function unlock(){
     const data=await _jsonp(apiUrl()+"?api=roster&k="+encodeURIComponent(k)+"&store="+encodeURIComponent(STORE)+"&callback="+cb, cb, 20000);
     if(!data||!data.ok){ gateSay("That link is not valid any more. Ask the HR office for a new one."); showRetry(true); return false; }
     saveKey(k);
-    ROLE = String(d.role||"guard").toLowerCase();
+    ROLE = String(data.role||"guard").toLowerCase();
     applyRole();
     STAFF=(data.staff||[]).map(r=>[r.code,r.name,r.dept]);
     STAFF.forEach(x=>byCode[x[0]]={code:x[0],name:x[1],dept:x[2]});
