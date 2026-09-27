@@ -171,7 +171,7 @@ td{text-align:right;padding:8px;border-bottom:1px solid #17293B;font-variant-num
 <header>
   <div class="brandline">
     <h1>Staff transport</h1>
-    <span id="syncDot" class="dot" title=""></span><span class="where" id="where">Zevenwacht SuperSPAR · demonstration</span>
+    <span id="syncDot" class="dot" title=""></span><span class="where" id="where">Zevenwacht SUPERSPAR · demonstration</span>
   </div>
   <nav role="tablist">
     <button role="tab" aria-selected="true" data-tab="board">At the taxi</button>
@@ -186,7 +186,7 @@ td{text-align:right;padding:8px;border-bottom:1px solid #17293B;font-variant-num
 <div id="gate">
   <div class="gate-card">
     <h2>Staff transport</h2>
-    <p id="gateMsg">Checking your link…</p>
+    <p id="gateMsg">Loading…</p>
     <button class="btn btn-go" id="gateRetry" style="display:none" onclick="unlock()">Try again</button> <button class="btn" id="gateSetup" style="display:none" onclick="gateSetApi()">Set the office address</button>
   </div>
 </div>
@@ -274,7 +274,11 @@ td{text-align:right;padding:8px;border-bottom:1px solid #17293B;font-variant-num
       <button class="btn btn-go" id="stmtScan">Scan my card</button>
       <button class="btn" id="stmtPick">Pick a name</button>
     </div>
-    <div id="stmtOut"></div>
+    <div id="stmtFind" style="display:none;margin-top:12px">
+  <input type="text" id="stmtQ" placeholder="Type a name or employee code" autocomplete="off" style="width:100%;max-width:340px">
+  <div id="stmtHits" style="margin-top:8px"></div>
+</div>
+<div id="stmtOut"></div>
   </div>
 </section>
 
@@ -474,7 +478,7 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 function board(code, manual){
   const p=byCode[code];
   if(!p){ flash("Card not recognised",true); return; }
-  if(current.aboard.some(x=>x.code===code)){ flash(p.name+" is already aboard",true); return; }
+  if(current.aboard.some(x=>x.code===code)){ (function(){ if(confirm(p.name+" is already aboard this vehicle.\n\nTake them off again?")){ current.aboard=current.aboard.filter(x=>x.code!==code); drawBoard(); flash(p.name+" taken off"); } })(); return; }
   if(current.aboard.length>=CAP){ flash("That vehicle is full",true); return; }
   const t=new Date().toTimeString().slice(0,5);
   current.aboard.push({code,name:p.name,dept:p.dept,time:t,manual:!!manual});
@@ -556,7 +560,7 @@ async function unlock(){
   }
   showGateSetup(false);
   if(!k){ gateSay("This page needs the link your HR office sent you, including the part after <b>?k=</b>."); showRetry(true); return false; }
-  gateSay("Checking…"); showRetry(false);
+  gateSay("Loading…"); showRetry(false);
   try{
     const cb="__txStaff"+Date.now();
     const data=await _jsonp(apiUrl()+"?api=roster&k="+encodeURIComponent(k)+"&store="+encodeURIComponent(STORE)+"&callback="+cb, cb, 20000);
@@ -1148,14 +1152,34 @@ async function statement(code){
     +'<div class="tot num" style="margin:10px 0 2px">'+R(tot)+'</div>'
     +'<div style="color:var(--dim);font-size:13px;margin-bottom:14px">'+trips.length+' night'+(trips.length===1?"":"s")+' on the staff transport this period, at '+R(FARE)+' a night</div>'
     +'<div class="trips">'+ (trips.length? trips.slice().reverse().map(t=>{
-        const dd=new Date(t.date+"T00:00:00");
-        return '<div><span>'+DOWN[(dd.getDay()+6)%7]+' '+t.date.slice(8)+"/"+t.date.slice(5,7)+' <span style="color:var(--dim)">'+esc(t.dir)+'</span></span><span class="num">'+R(FARE)+'</span></div>';
+        const DAYN=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]; const dd=new Date(t.date+"T00:00:00");
+        return '<div><span>'+DAYN[(dd.getDay()+6)%7]+' '+t.date.slice(8)+"/"+t.date.slice(5,7)+' <span style="color:var(--dim)">'+esc(t.dir)+'</span></span><span class="num">'+R(FARE)+'</span></div>';
       }).join("")
       : '<div style="color:var(--dim)">No trips recorded this period.</div>')+'</div>'
     +'<p class="note">Anything here that looks wrong goes to the HR office within seven days, before the deduction runs.</p></div>';
 }
 $("#stmtScan").addEventListener("click",()=>openScanner(statement));
 $("#stmtPick").addEventListener("click",()=>{
+  const box=$("#stmtFind");
+  box.style.display = box.style.display==="none" ? "block" : "none";
+  if(box.style.display==="block"){ $("#stmtQ").value=""; $("#stmtHits").innerHTML=""; $("#stmtQ").focus(); }
+});
+$("#stmtQ").addEventListener("input",()=>{
+  const q=($("#stmtQ").value||"").trim().toLowerCase();
+  const hits=$("#stmtHits");
+  if(q.length<2){ hits.innerHTML=""; return; }
+  const m=STAFF.filter(x=>(x[1]+" "+x[0]).toLowerCase().indexOf(q)>=0).slice(0,8);
+  hits.innerHTML = m.length
+    ? m.map(x=>'<button class="btn btn-quiet stmtpick" data-c="'+esc(x[0])+'" style="margin:5px 6px 0 0;padding:6px 11px;font-size:12.5px">'
+        +esc(x[1])+' <span style="color:var(--dim)">'+esc(x[0])+'</span></button>').join("")
+    : '<span class="note">Nobody by that name or code.</span>';
+});
+document.addEventListener("click",function(e){
+  const b=e.target.closest && e.target.closest(".stmtpick");
+  if(!b) return;
+  $("#stmtFind").style.display="none";
+  statement(b.dataset.c);
+});
   const r=RIDERS[Math.floor(Math.random()*RIDERS.length)];
   statement(r.code);
 });
