@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waste sign-off</title>
+<meta name="description" content="Tap to open, then scan your waste card. Check the sheet, note every flag, sign it within 48 hours.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://theunisspar-bot.github.io/overtime-links/waste.html">
+<meta property="og:title" content="Waste sign-off · Mandalay Group of Stores">
+<meta property="og:description" content="Tap to open, then scan your waste card. Check the sheet, note every flag, sign it within 48 hours.">
+<meta property="og:image" content="https://theunisspar-bot.github.io/overtime-links/waste-preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="robots" content="noindex">
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#015F8A;color:#fff;font:18px -apple-system,Segoe UI,Roboto,Arial,sans-serif}a{color:#F99E29}</style>
+<script>
+  // Forwards to the Waste Review app, keeping ?store=XXX from the WhatsApp link.
+  var APP = 'https://script.google.com/macros/s/AKfycbx1vE_Xe77hzNaU0jU3W-oLzfQDtoZFnzifkCZrEmRCz88_wVeh2ks5Kophy40Bru6GCw/exec';
+  var q = location.search.match(/[?&]store=([A-Za-z]{2,5})/);
+  var to = APP + (q ? '?store=' + q[1].toUpperCase() : '');
+  location.replace(to);
+</script>
+</head>
+<body><p>Opening Waste Review&hellip; <a id="go" href="#">tap here</a> if nothing happens.</p>
+<script>document.getElementById('go').href = to;</script>
+</body>
+</html>
