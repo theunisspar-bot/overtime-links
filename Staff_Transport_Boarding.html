@@ -371,7 +371,7 @@ body.asking{overflow:hidden}
 const STAFF_SEED=[];
 let STAFF=[];
 /* ---------- settings ---------- */
-const AREAS=["Eersterivier","Mfuleni","Blue Downs","Delft","Khayelitsha"];
+let AREAS=["Eersterivier","Mfuleni","Blue Downs","Delft","Khayelitsha"];
 let CAP=15;              // seats per vehicle
 let COST=620;            // what the operator charges per vehicle per night
 let FARE=17;             // what each rider contributes
@@ -581,6 +581,11 @@ async function unlock(){
     STAFF.forEach(x=>byCode[x[0]]={code:x[0],name:x[1],dept:x[2]});
     RIDERS=(data.staff||[]).filter(r=>r.dir).map(r=>({code:r.code,name:r.name,dept:r.dept,area:r.dir}));
     RIDERS.forEach(r=>riderByCode[r.code]=r);
+    if(data.store) STORE=String(data.store).toUpperCase();
+    if(data.fare)  FARE=Number(data.fare)||FARE;
+    (function(){ const seen=[]; RIDERS.forEach(r=>{ if(r.area && seen.indexOf(r.area)<0) seen.push(r.area); });
+      if(seen.length){ AREAS=seen.sort(); const ds=$("#dir");
+        if(ds){ ds.innerHTML=""; AREAS.forEach(a=>{ const o=document.createElement("option"); o.textContent=a; ds.appendChild(o); }); } } })();
     if(gate) gate.style.display="none";
     const who=$("#who"); if(who) who.textContent=(data.guard||"")+(data.store?" · "+data.store:"");
     return true;
@@ -596,7 +601,7 @@ async function gateSetApi(){ apiSet(); if(apiUrl()) await unlock(); }
 
 /* ---------- where records go ---------- */
 const API_RE=/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/;
-const STORE="ZSS";
+let STORE="ZSS";
 const DEVICE=(function(){ try{ let d=localStorage.getItem("tx:device"); if(!d){ d="dev-"+Math.random().toString(36).slice(2,7); localStorage.setItem("tx:device",d);} return d; }catch(e){ return "dev"; } })();
 const GUARD=(function(){ try{ return localStorage.getItem("tx:guard")||""; }catch(e){ return ""; } })();
 function apiUrl(){ try{ const v=localStorage.getItem("tx:api")||""; return API_RE.test(v)?v:""; }catch(e){ return ""; } }
