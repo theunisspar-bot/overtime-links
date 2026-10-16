@@ -587,7 +587,7 @@ async function unlock(){
     if(data.fare)  FARE=Number(data.fare)||FARE;
     (function(){ const seen=[]; RIDERS.forEach(r=>{ if(r.area && seen.indexOf(r.area)<0) seen.push(r.area); });
       if(seen.length){ AREAS=seen.sort(); const ds=$("#dir");
-        if(ds){ ds.innerHTML=""; AREAS.forEach(a=>{ const o=document.createElement("option"); o.textContent=a; ds.appendChild(o); }); } } })();
+        if(ds){ ds.innerHTML=""; AREAS.forEach(a=>{ const o=document.createElement("option"); o.textContent=a; ds.appendChild(o); }); ds.dispatchEvent(new Event("change")); } } })();
     if(gate) gate.style.display="none";
     const who=$("#who"); if(who) who.textContent=(data.guard||"")+(data.store?" · "+data.store:"");
     return true;
