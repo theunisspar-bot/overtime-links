@@ -613,7 +613,7 @@ async function unlock(){
     applyRole();
     STAFF=(data.staff||[]).map(r=>[r.code,r.name,r.dept]);
     STAFF.forEach(x=>byCode[x[0]]={code:x[0],name:x[1],dept:x[2]});
-    RIDERS=(data.staff||[]).filter(r=>r.dir).map(r=>({code:r.code,name:r.name,dept:r.dept,area:r.dir}));
+    RIDERS=(function(S){var any=S.some(function(x){return !!x.dir;});return S.filter(function(r){return any?!!r.dir:true;});})(data.staff||[]).map(r=>({code:r.code,name:r.name,dept:r.dept,area:r.dir}));
     RIDERS.forEach(r=>riderByCode[r.code]=r);
     if(data.store) STORE=String(data.store).toUpperCase();
     (function(){ const NAMES={ZSS:"Zevenwacht SUPERSPAR",KSS:"Kuilsriver SUPERSPAR",LKS:"Langverwacht KWIKSPAR",CW:"Car Wash",HO:"Head Office"};
