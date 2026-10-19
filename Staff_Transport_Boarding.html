@@ -682,7 +682,7 @@ function payrollCsv(){
   flash("Payroll file downloaded");
 }
 function payPeriodOf(dateStr){
-  const d=new Date(dateStr+"T00:00:00"); const start = STORE==="CW"?20:23;
+  const d=new Date(dateStr+"T00:00:00"); const start = STORE==="CW"?20:15;
   let y=d.getFullYear(), m=d.getMonth();
   if(d.getDate()<start){ m-=1; if(m<0){ m=11; y-=1; } }
   let em=m+1, ey=y; if(em>11){ em=0; ey+=1; }
@@ -1047,7 +1047,7 @@ function shiftIso(iso, days){
 }
 function periodStartIso(per, store){
   const p=per.split("-").map(Number);
-  const d=new Date(p[0], p[1]-2, store==="CW" ? 20 : 23);
+  const d=new Date(p[0], p[1]-2, store==="CW" ? 20 : 15);
   return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
 }
 async function fetchTrips(from, to){
@@ -1178,7 +1178,7 @@ async function statement(code){
     const today=TONIGHT.date;
     const per=payPeriodOf(today);
     const pp=per.split("-").map(Number);
-    const st=new Date(pp[0], pp[1]-2, STORE==="CW" ? 20 : 23);   // the day this period opened
+    const st=new Date(pp[0], pp[1]-2, STORE==="CW" ? 20 : 15);   // the day this period opened
     const from=st.getFullYear()+"-"+("0"+(st.getMonth()+1)).slice(-2)+"-"+("0"+st.getDate()).slice(-2);
     const cb="__txTrips"+Date.now();
     const d=await _jsonp(apiUrl()+"?api=trips&store="+encodeURIComponent(STORE)
