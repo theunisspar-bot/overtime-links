@@ -205,16 +205,17 @@ body.asking{overflow:hidden}
 <!-- ============ BOARDING ============ -->
 <section id="tab-board">
   <h2>Loading a vehicle</h2>
-  <p class="lede">The guard picks the direction, then scans each card as people climb in. Seats fill as they board, so an empty vehicle is visible before it pulls off rather than at month end.</p>
+  <p class="lede" id="boardLede">The guard picks the direction, then scans each card as people climb in. Seats fill as they board, so an empty vehicle is visible before it pulls off rather than at month end.</p>
 
   <div class="card">
     <div class="board-top">
-      <label class="field"><span>Direction</span>
+      <label class="field" id="dirField"><span>Direction</span>
         <select id="dir"></select>
       </label>
       <label class="field"><span>Vehicle</span>
         <select id="veh"></select>
       </label>
+      <label class="field" id="dutyField"><span>On duty</span><input id="duty" type="text" placeholder="Driver or guard name" autocomplete="off"></label>
       <button class="btn btn-go" id="scanBtn">Scan a card</button>
       <button class="btn" id="manualBtn">No card — search by name</button>
       <button class="btn btn-quiet" id="departBtn">Vehicle departs</button>
@@ -372,6 +373,7 @@ const STAFF_SEED=[];
 let STAFF=[];
 /* ---------- settings ---------- */
 let AREAS=["Eersterivier","Mfuleni","Blue Downs","Delft","Khayelitsha"];
+let ONE_TAXI=false;
 let CAP=15;              // seats per vehicle
 let COST=620;            // what the operator charges per vehicle per night
 let FARE=17;             // what each rider contributes
@@ -490,7 +492,7 @@ function board(code, manual){
   if(current.aboard.some(x=>x.code===code)){ (async function(){ if(await ask("Already aboard", p.name+" \u00b7 "+p.code+" \u00b7 "+p.dept+" is already on vehicle "+current.veh+".", "Take off the vehicle", "Keep aboard")){ current.aboard=current.aboard.filter(x=>x.code!==code); drawBoard(); flash(p.name+" taken off"); } })(); return; }
   if(current.aboard.length>=CAP){ flash("That vehicle is full",true); return; }
   const t=new Date().toTimeString().slice(0,5);
-  current.aboard.push({code,name:p.name,dept:p.dept,time:t,manual:!!manual});
+  current.aboard.push({code,name:p.name,dept:p.dept,time:t,manual:!!manual,area:(riderByCode[code]||{}).area||""});
   drawBoard();
   flash(p.name+" — seat "+current.aboard.length);
 }
@@ -588,6 +590,15 @@ async function unlock(){
     (function(){ const seen=[]; RIDERS.forEach(r=>{ if(r.area && seen.indexOf(r.area)<0) seen.push(r.area); });
       if(seen.length){ AREAS=seen.sort(); const ds=$("#dir");
         if(ds){ ds.innerHTML=""; AREAS.forEach(a=>{ const o=document.createElement("option"); o.textContent=a; ds.appendChild(o); }); ds.dispatchEvent(new Event("change")); } } })();
+    ONE_TAXI = !!data.oneTaxi;
+    if(ONE_TAXI){
+      const df=$("#dirField"); if(df) df.style.display="none";
+      current.dir="All routes";
+      const le=$("#boardLede"); if(le) le.textContent="Scan each card as people climb in. One taxi runs every route, so each person is recorded against the area they live in.";
+      drawBoard();
+    }
+    (function(){ const du=$("#duty"); if(du){ du.value=GUARD;
+      du.addEventListener("input",function(){ GUARD=du.value.trim(); try{ localStorage.setItem("tx:guard",GUARD); }catch(e){} }); } })();
     if(gate) gate.style.display="none";
     const who=$("#who"); if(who) who.textContent=(data.guard||"")+(data.store?" · "+data.store:"");
     return true;
@@ -605,7 +616,7 @@ async function gateSetApi(){ apiSet(); if(apiUrl()) await unlock(); }
 const API_RE=/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/;
 let STORE="ZSS";
 const DEVICE=(function(){ try{ let d=localStorage.getItem("tx:device"); if(!d){ d="dev-"+Math.random().toString(36).slice(2,7); localStorage.setItem("tx:device",d);} return d; }catch(e){ return "dev"; } })();
-const GUARD=(function(){ try{ return localStorage.getItem("tx:guard")||""; }catch(e){ return ""; } })();
+let GUARD=(function(){ try{ return localStorage.getItem("tx:guard")||""; }catch(e){ return ""; } })();
 function apiUrl(){ try{ const v=localStorage.getItem("tx:api")||""; return API_RE.test(v)?v:""; }catch(e){ return ""; } }
 function apiSet(){
   const v=(prompt("Address of the Staff Transport web app.\n\nIt must end in /exec — copy it from Deploy \u203a Manage deployments in the Apps Script editor.\n\nLeave it blank to keep records on this device only.", apiUrl())||"").trim();
@@ -683,7 +694,7 @@ $("#departBtn").addEventListener("click",openSend);
 function openSend(){
   if(!current.aboard.length){ flash("Nobody has boarded yet",true); return; }
   const n=current.aboard.length;
-  $("#sendTitle").textContent="Vehicle "+current.veh+" to "+current.dir;
+  $("#sendTitle").textContent = ONE_TAXI ? ("Vehicle "+current.veh+" — all routes") : ("Vehicle "+current.veh+" to "+current.dir);
   $("#sendSub").textContent=n+" card"+(n===1?"":"s")+" tapped. Check the count before it pulls off — once sent, this vehicle is closed.";
   $("#sendList").innerHTML=current.aboard.map((p,i)=>
     '<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 12px;border-bottom:1px solid #17293B;font-size:13px">'
@@ -724,7 +735,7 @@ $("#sendGo").addEventListener("click",()=>{
   enqueue({
     vehicleId:vid, store:STORE, date:TONIGHT.date, direction:current.dir, vehicle:current.veh,
     tapped:n, headcount:isNaN(head)?n:head, gap, closedAt, guard:GUARD, device:DEVICE,
-    trips:current.aboard.map((p,i)=>({id:vid+"-"+p.code, code:p.code, name:p.name, dept:p.dept,
+    trips:current.aboard.map((p,i)=>({id:vid+"-"+p.code, code:p.code, name:p.name, dept:p.dept, dir:p.area||"",
       at:p.time, how:p.manual?"searched":"card"}))
   });
   $("#sendwrap").style.display="none";
