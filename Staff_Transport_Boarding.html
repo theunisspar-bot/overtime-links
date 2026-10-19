@@ -1239,7 +1239,7 @@ function drawCards(){
   }
   const pick=$("#cardDept").value;
   const list = CARDONE ? STAFF.filter(s=>s[0]===CARDONE)
-             : (pick? STAFF.filter(s=>s[2]===pick) : RIDERS.map(r=>[r.code,r.name,r.dept])).slice(0,60);
+             : (pick? STAFF.filter(s=>s[2]===pick) : RIDERS.map(r=>[r.code,r.name,r.dept])).slice().sort(function(a,b){ return String(a[0]).localeCompare(String(b[0]),"en",{numeric:true}); }).slice(0,500);
   const g=$("#cardGrid"); g.innerHTML="";
   list.forEach(s=>{
     const d=document.createElement("div"); d.className="qcard";
@@ -1254,7 +1254,7 @@ function drawCards(){
 function cardSheetHtml(){
   const pick=$("#cardDept").value;
   const list = CARDONE ? STAFF.filter(s=>s[0]===CARDONE)
-             : (pick? STAFF.filter(s=>s[2]===pick) : RIDERS.map(r=>[r.code,r.name,r.dept])).slice(0,60);
+             : (pick? STAFF.filter(s=>s[2]===pick) : RIDERS.map(r=>[r.code,r.name,r.dept])).slice().sort(function(a,b){ return String(a[0]).localeCompare(String(b[0]),"en",{numeric:true}); }).slice(0,500);
   const cards=list.map(s=>{
     const c=document.createElement("canvas");
     if(typeof QRious==="function") new QRious({element:c,value:"STAFF:"+s[0],size:420,level:"M",padding:8});
