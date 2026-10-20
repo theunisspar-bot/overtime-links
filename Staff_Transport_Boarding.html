@@ -407,7 +407,8 @@ let STAFF=[];
 let AREAS=["Eersterivier","Mfuleni","Blue Downs","Delft","Khayelitsha"];
 let ONE_TAXI=false;
 let CAP=15;              // seats per vehicle
-let COST=620;            // what the operator charges per vehicle per night
+let COST=500; // what the operator charges per vehicle per trip
+const COSTBY={LKS:500}; // per store, until the sheet carries the figure
 let FARE=17;             // what each rider contributes
 const NIGHTS=28;         // how much history the demo carries
 
@@ -619,6 +620,7 @@ async function unlock(){
     (function(){ const NAMES={ZSS:"Zevenwacht SUPERSPAR",KSS:"Kuilsriver SUPERSPAR",LKS:"Langverwacht KWIKSPAR",CW:"Car Wash",HO:"Head Office"};
       const w=$("#where"); if(w) w.textContent=(NAMES[STORE]||STORE)+(data.guard?" · "+data.guard:""); })();
     if(data.fare)  FARE=Number(data.fare)||FARE;
+    COST=Number(data.cost)||COSTBY[STORE]||COST;
     (function(){ const seen=[]; RIDERS.forEach(r=>{ if(r.area && seen.indexOf(r.area)<0) seen.push(r.area); });
       if(seen.length){ AREAS=seen.sort(); const ds=$("#dir");
         if(ds){ ds.innerHTML=""; AREAS.forEach(a=>{ const o=document.createElement("option"); o.textContent=a; ds.appendChild(o); }); ds.dispatchEvent(new Event("change")); } } })();
@@ -949,6 +951,7 @@ function vehStrip(v,i){
     +'<div class="veh-foot"><span><b>'+n+'</b> aboard of '+CAP+'</span><span>'+pct+'% full</span>'
     +'<span>costs <b>'+R(COST)+'</b></span><span>recovers <b>'+R(n*FARE)+'</b></span>'
     +'<span>carries a cost of <b>'+R(n?COST/n:COST)+'</b> a head</span>'
+    +(n*FARE<COST?'<span style="color:var(--hot)">short by <b>'+R(COST-n*FARE)+'</b></span>':'')
     +(v.gap ? '<span style="color:var(--hot)"><b>'+Math.abs(v.gap)+'</b> '+(v.gap>0?"aboard without tapping":"tapped but not aboard")+'</span>' : '')
     +'</div></div>';
 }
