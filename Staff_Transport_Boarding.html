@@ -622,8 +622,11 @@ async function unlock(){
     if(data.fare)  FARE=Number(data.fare)||FARE;
     COST=Number(data.cost)||COSTBY[STORE]||COST;
     (function(){ const seen=[]; RIDERS.forEach(r=>{ if(r.area && seen.indexOf(r.area)<0) seen.push(r.area); });
-      if(seen.length){ AREAS=seen.sort(); const ds=$("#dir");
-        if(ds){ ds.innerHTML=""; AREAS.forEach(a=>{ const o=document.createElement("option"); o.textContent=a; ds.appendChild(o); }); ds.dispatchEvent(new Event("change")); } } })();
+      /* No routes recorded for this store yet: show one honest "All routes"
+   rather than falling back to another store’s suburb list. */
+AREAS = seen.length ? seen.sort() : ["All routes"];
+const ds=$("#dir");
+if(ds){ ds.innerHTML=""; AREAS.forEach(a=>{ const o=document.createElement("option"); o.textContent=a; ds.appendChild(o); }); ds.dispatchEvent(new Event("change")); } })();
     ONE_TAXI = !!data.oneTaxi;
     if(ONE_TAXI){
       const df=$("#dirField"); if(df) df.style.display="none";
