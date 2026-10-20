@@ -1108,18 +1108,25 @@ async function runReport(){
   try{ rows=await fetchTrips(from,to); }
   catch(e){ $("#rNote").textContent="Could not reach the office system. "+e.message; return; }
   const nights={}, vehicles={}, byDir={}, byDay={};
-  rows.forEach(r=>{
-    const dt=String(r["Date"]), code=String(r["Employee Code"]), dir=String(r["Direction"]||"\u2014");
-    nights[dt+"|"+code]=1;
-    vehicles[dt+"|"+String(r["Vehicle"])]=1;
-    byDir[dir]=(byDir[dir]||0)+1;
-    byDay[dt]=(byDay[dt]||0)+1;
-  });
+/* A morning pick-up and that night's run are two different taxis. Keyed on
+   the date alone they collapse into one: the second vehicle vanishes off the
+   bill, and anyone who rides both legs is counted - and charged - once.
+   Three in the morning divides one from the other, same as the e-mails. */
+const legOf = t => { const m=/^(\d{1,2}):/.exec(String(t||"")); const h=m?+m[1]:-1; return (h>=3&&h<12)?"Morning":"Night"; };
+rows.forEach(r=>{
+  const dt=String(r["Date"]), code=String(r["Employee Code"]), dir=String(r["Direction"]||"\u2014");
+  const leg=legOf(r["Boarded At"]), key=dt+"|"+leg;
+  nights[key+"|"+code]=1;
+  vehicles[key+"|"+String(r["Vehicle"])]=1;
+  byDir[dir]=(byDir[dir]||0)+1;
+  byDay[key]=(byDay[key]||0)+1;
+});
   const trips=Object.keys(nights).length, vehs=Object.keys(vehicles).length;
   const cost=vehs*COST, rec=trips*FARE, pct=cost?Math.round(100*rec/cost):0;
   RREPORT={from,to,trips,vehs,cost,rec,pct,byDir,byDay};
-  const nn=Object.keys(byDay).length;
-  $("#rNote").textContent=isoToDMY(from)+" to "+isoToDMY(to)+" \u00b7 "+nn+" night"+(nn===1?"":"s")+" with a vehicle out";
+  const dates={}; Object.keys(byDay).forEach(k=>{ dates[k.split("|")[0]]=1; });
+const nn=Object.keys(dates).length, runs=Object.keys(byDay).length;
+  $("#rNote").textContent=isoToDMY(from)+" to "+isoToDMY(to)+" \u00b7 "+nn+" day"+(nn===1?"":"s")+" \u00b7 "+runs+" taxi run"+(runs===1?"":"s");
   $("#rKpis").innerHTML =
       kpi(String(vehs),"vehicles sent")
     + kpi(String(trips),"person-nights carried")
@@ -1129,13 +1136,13 @@ async function runReport(){
     + kpi(pct+"%","of the cost recovered", pct<50?"bad":"good");
   const dirRows=Object.keys(byDir).sort((a,b)=>byDir[b]-byDir[a]).map(k=>
     '<tr><td>'+esc(k)+'</td><td class="num">'+byDir[k]+'</td><td class="num">'+R(byDir[k]*FARE)+'</td></tr>').join("");
-  const dayRows=Object.keys(byDay).sort().map(k=>
-    '<tr><td>'+isoToDMY(k)+'</td><td class="num">'+byDay[k]+'</td><td class="num">'+R(byDay[k]*FARE)+'</td></tr>').join("");
+  const dayRows=Object.keys(byDay).sort().map(k=>{ const p=k.split("|");
+  return '<tr><td>'+isoToDMY(p[0])+'</td><td>'+p[1]+'</td><td class="num">'+byDay[k]+'</td><td class="num">'+R(byDay[k]*FARE)+'</td></tr>'; }).join("");
   $("#rOut").innerHTML=
      '<h3 style="margin:22px 0 0;font-size:15px">By direction</h3>'
     +'<table><thead><tr><th>Direction</th><th class="num">Person-nights</th><th class="num">Recovered</th></tr></thead><tbody>'+dirRows+'</tbody></table>'
-    +'<h3 style="margin:22px 0 0;font-size:15px">Night by night</h3>'
-    +'<table><thead><tr><th>Date</th><th class="num">Person-nights</th><th class="num">Recovered</th></tr></thead><tbody>'+dayRows+'</tbody></table>';
+    +'<h3 style="margin:22px 0 0;font-size:15px">Run by run</h3>'
++'<table><thead><tr><th>Date</th><th>Leg</th><th class="num">Person-nights</th><th class="num">Recovered</th></tr></thead><tbody>'+dayRows+'</tbody></table>';
 }
 function reportCsv(){
   if(!RREPORT){ flash("Run the report first",true); return; }
@@ -1143,8 +1150,9 @@ function reportCsv(){
     ["Vehicles sent", RREPORT.vehs],["Person-nights carried", RREPORT.trips],
     ["Billed by the operator", RREPORT.cost],["Recovered from staff", RREPORT.rec],
     ["Carried by the store", RREPORT.cost-RREPORT.rec],["Cost recovered %", RREPORT.pct],[],
-    ["Date","Person-nights","Recovered"]];
-  Object.keys(RREPORT.byDay).sort().forEach(k=>L.push([isoToDMY(k), RREPORT.byDay[k], RREPORT.byDay[k]*FARE]));
+    ["Date","Leg","Person-nights","Recovered"]];
+  Object.keys(RREPORT.byDay).sort().forEach(k=>{ const p=k.split("|");
+  L.push([isoToDMY(p[0]), p[1], RREPORT.byDay[k], RREPORT.byDay[k]*FARE]); });
   L.push([]); L.push(["Direction","Person-nights","Recovered"]);
   Object.keys(RREPORT.byDir).sort().forEach(k=>L.push([k, RREPORT.byDir[k], RREPORT.byDir[k]*FARE]));
   const csv=L.map(r=>r.map(c=>{ const v=String(c==null?"":c); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }).join(",")).join("\n");
