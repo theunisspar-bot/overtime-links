@@ -658,7 +658,12 @@ const API_RE=/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/;
 let STORE="ZSS";
 const DEVICE=(function(){ try{ let d=localStorage.getItem("tx:device"); if(!d){ d="dev-"+Math.random().toString(36).slice(2,7); localStorage.setItem("tx:device",d);} return d; }catch(e){ return "dev"; } })();
 let GUARD=(function(){ try{ return localStorage.getItem("tx:guard")||""; }catch(e){ return ""; } })();
-function apiUrl(){ try{ const v=localStorage.getItem("tx:api")||""; return API_RE.test(v)?v:""; }catch(e){ return ""; } }
+/* Where records go. A phone that has never opened this page has nothing in
+   storage, so without a default the first thing a guard sees is a setup screen
+   asking for an address nobody gave him. What grants access is the key in his
+   link, not this address, and the sheet refuses anything without one. */
+const DEFAULT_API="https://script.google.com/macros/s/AKfycbzljePXTNYJzoI8yZ3HeEaP-of6bLd3E70kPxLWZAP9_3Wmmg8sI1QkzLGgpwT48Fjg/exec";
+function apiUrl(){ try{ const v=localStorage.getItem("tx:api")||""; return API_RE.test(v)?v:DEFAULT_API; }catch(e){ return DEFAULT_API; } }
 function apiSet(){
   const v=(prompt("Address of the Staff Transport web app.\n\nIt must end in /exec — copy it from Deploy \u203a Manage deployments in the Apps Script editor.\n\nLeave it blank to keep records on this device only.", apiUrl())||"").trim();
   if(v && !API_RE.test(v)){ alert("That is not a web app address. It must look like\n\nhttps://script.google.com/macros/s/AKfyc.../exec\n\nThe address of the Google Sheet itself will not work."); return; }
