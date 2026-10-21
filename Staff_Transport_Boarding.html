@@ -378,7 +378,7 @@ body.asking{overflow:hidden}
       <div id="scanFallback" style="display:none;flex-direction:column;gap:8px;margin-bottom:12px;max-width:340px">
         <label class="btn btn-go" style="text-align:center">Take a photo of the card<input type="file" id="photoIn" accept="image/*" capture="environment" style="display:none"></label>
         <button class="btn" id="scanByName">Search by name instead</button>
-        <button class="btn btn-quiet" id="copyLink">Copy this link to open in Safari</button>
+        <button class="btn btn-quiet" id="copyLink">Copy this link to open in your browser</button>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" id="scanClose">Close</button><button class="btn" id="camFlip">↻ Switch camera</button><span id="camLabel" style="font-size:12.5px;color:#cfd8e3;background:rgba(0,0,0,.55);padding:5px 10px;border-radius:8px"></span></div>
     </div>
@@ -839,13 +839,19 @@ async function openScanner(handler){
   $("#scanSay").textContent="Starting the camera…";
   try{
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) throw new Error("no camera api");
-    await startCam();
+    /* A camera request inside an app's own browser can hang for ever instead
+       of refusing, which leaves the guard looking at a black screen with no
+       idea why. Six seconds, then say something he can act on. */
+    await Promise.race([ startCam(),
+      new Promise(function(_,rej){ setTimeout(function(){ rej(new Error("camera did not start in time")); },6000); }) ]);
   }catch(e){
     scanning=false;
     const inApp=inAppBrowser();
     $("#scanSay").innerHTML = inApp
-      ? "<b>This page is open inside another app.</b><br>WhatsApp, Facebook and Instagram do not let a page use the camera. Tap the <b>⋯</b> or share button at the top and choose <b>Open in Safari</b> (or Chrome), then scan again."
-      : "<b>The camera did not start.</b><br>Allow camera access for this page, or use one of the options below.";
+      ? "<b>This page is open inside another app.</b><br>WhatsApp, Facebook and Instagram do not let a page use the camera. "
+        + "Tap the <b>\u22ee</b> or share button at the top and choose <b>Open in browser</b>, then scan again."
+      : "<b>The camera did not start.</b><br>If you opened this from a WhatsApp message, tap <b>\u22ee</b> at the top "
+        + "and choose <b>Open in browser</b>, then try again. Otherwise allow camera access for this page, or use an option below.";
     $("#scanFallback").style.display="flex";
   }
 }
