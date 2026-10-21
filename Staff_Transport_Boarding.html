@@ -409,6 +409,16 @@ const STAFF_SEED=[];
 let STAFF=[];
 /* ---------- settings ---------- */
 let AREAS=["Eersterivier","Mfuleni","Blue Downs","Delft","Khayelitsha"];
+/* The runs each store's taxis actually do, in the order the guard reads them.
+   Fixed per store on purpose: the list used to be built from whoever happened
+   to be on tonight's rider list, so a guard saw five routes one evening and
+   three the next, and a suburb with nobody riding vanished from the dropdown
+   altogether. A store named here always shows exactly these; a store left out
+   still falls back to the suburbs its riders live in. */
+const ROUTES={
+  ZSS:["All routes","Eersteriver","Mfuleni","New Beginning","Khayelitsha"],
+  KSS:["Mfuleni","Eerste River","Kuilsriver"]
+};
 let ONE_TAXI=false;
 let CAP=15;              // seats per vehicle
 let COST=500; // what the operator charges per vehicle per trip
@@ -628,7 +638,7 @@ async function unlock(){
     (function(){ const seen=[]; RIDERS.forEach(r=>{ if(r.area && seen.indexOf(r.area)<0) seen.push(r.area); });
       /* No routes recorded for this store yet: show one honest "All routes"
    rather than falling back to another store’s suburb list. */
-AREAS = seen.length ? seen.sort() : ["All routes"];
+AREAS = ROUTES[STORE] || (seen.length ? seen.sort() : ["All routes"]);
 const ds=$("#dir");
 if(ds){ ds.innerHTML=""; AREAS.forEach(a=>{ const o=document.createElement("option"); o.textContent=a; ds.appendChild(o); }); ds.dispatchEvent(new Event("change")); } })();
     ONE_TAXI = !!data.oneTaxi;
