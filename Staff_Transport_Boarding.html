@@ -345,7 +345,7 @@ body.asking{overflow:hidden}
       <button class="btn btn-go" id="runReport">Run</button>
       <button class="btn btn-quiet" id="rWeek">This week</button>
       <button class="btn btn-quiet" id="rPeriod">This pay period</button>
-      <button class="btn btn-quiet" id="rCsv">Download CSV</button>
+      <button class="btn btn-quiet" id="rCsv">Download CSV</button><button class="btn btn-quiet" id="rPay">Payroll CSV</button>
     </div>
     <p class="note" id="rNote">Pick a range and press Run.</p>
   </div>
@@ -1107,7 +1107,7 @@ async function runReport(){
   let rows;
   try{ rows=await fetchTrips(from,to); }
   catch(e){ $("#rNote").textContent="Could not reach the office system. "+e.message; return; }
-  const nights={}, vehicles={}, byDir={}, byDay={};
+  const nights={}, vehicles={}, byDir={}, byDay={}, byCode={};
 /* A morning pick-up and that night's run are two different taxis. Keyed on
    the date alone they collapse into one: the second vehicle vanishes off the
    bill, and anyone who rides both legs is counted - and charged - once.
@@ -1116,14 +1116,18 @@ const legOf = t => { const m=/^(\d{1,2}):/.exec(String(t||"")); const h=m?+m[1]:
 rows.forEach(r=>{
   const dt=String(r["Date"]), code=String(r["Employee Code"]), dir=String(r["Direction"]||"\u2014");
   const leg=legOf(r["Boarded At"]), key=dt+"|"+leg;
-  nights[key+"|"+code]=1;
+  /* One charge per person per run: a second scan on the same taxi is the
+     same trip. byCode is built off the same test as the person-night count,
+     so the payroll file and the report can never disagree. */
+  const nk=key+"|"+code;
+  if(!nights[nk]){ nights[nk]=1; byCode[code]=(byCode[code]||0)+1; }
   vehicles[key+"|"+String(r["Vehicle"])]=1;
   byDir[dir]=(byDir[dir]||0)+1;
   byDay[key]=(byDay[key]||0)+1;
 });
   const trips=Object.keys(nights).length, vehs=Object.keys(vehicles).length;
   const cost=vehs*COST, rec=trips*FARE, pct=cost?Math.round(100*rec/cost):0;
-  RREPORT={from,to,trips,vehs,cost,rec,pct,byDir,byDay};
+  RREPORT={from,to,trips,vehs,cost,rec,pct,byDir,byDay,byCode};
   const dates={}; Object.keys(byDay).forEach(k=>{ dates[k.split("|")[0]]=1; });
 const nn=Object.keys(dates).length, runs=Object.keys(byDay).length;
   $("#rNote").textContent=isoToDMY(from)+" to "+isoToDMY(to)+" \u00b7 "+nn+" day"+(nn===1?"":"s")+" \u00b7 "+runs+" taxi run"+(runs===1?"":"s");
@@ -1162,6 +1166,27 @@ function reportCsv(){
   document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },30000);
 }
+/* Payroll import. Two columns and nothing else, because that is all the
+   import takes. The amount comes off the same count the report shows, so a
+   query about one can always be answered with the other. */
+function payrollPeriodCsv(){
+  if(!RREPORT){ flash("Run the report first",true); return; }
+  const codes=Object.keys(RREPORT.byCode||{}).sort();
+  if(!codes.length){ flash("Nothing to charge for that period",true); return; }
+  const L=[["Employee Code","Total Rand Value"]];
+  codes.forEach(c=>L.push([c,(RREPORT.byCode[c]*FARE).toFixed(2)]));
+  const csv=L.map(r=>r.map(v=>{ const s=String(v==null?"":v);
+    return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(",")).join("\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  a.download="Staff_transport_payroll_"+STORE+"_"
+    +isoToDMY(RREPORT.from).replace(/\//g,"-")+"_to_"+isoToDMY(RREPORT.to).replace(/\//g,"-")+".csv";
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },30000);
+  flash(codes.length+" people \u00b7 "+R(codes.reduce((t,c)=>t+RREPORT.byCode[c]*FARE,0)));
+}
+(function(){ const b=document.getElementById("rPay"); if(b) b.addEventListener("click", payrollPeriodCsv); })();
+
 function drawCardHits(){
   const q=($("#cardFind").value||"").trim().toLowerCase();
   const hits=$("#cardHits");
