@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Staff transport — who went home</title>
+<style>
+:root{
+  --ink:#1b2230; --dim:#5b6475; --line:#e3e7ee; --bg:#f4f6f9; --card:#fff;
+  --red:#b3261e; --redbg:#fbe9e7; --amber:#8a6100; --amberbg:#fdf3dd;
+  --good:#1e6b45; --goodbg:#e7f3ec;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+     font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif}
+header{background:linear-gradient(165deg,#1f7bc4,#15598f);color:#fff;padding:18px 16px 16px}
+h1{margin:0 0 6px;font-size:23px;font-weight:800;letter-spacing:-.2px}
+.sub{font-size:13.5px;color:#dceaf6;line-height:1.5}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chip{border:1px solid rgba(255,255,255,.55);background:transparent;color:#fff;
+      border-radius:999px;padding:7px 15px;font-size:14px;cursor:pointer}
+.chip.on{background:#fff;color:#15598f;font-weight:700;border-color:#fff}
+.day{display:flex;align-items:center;gap:10px;margin-top:14px}
+.day button{border:1px solid rgba(255,255,255,.55);background:transparent;color:#fff;
+            border-radius:8px;width:34px;height:32px;font-size:16px;cursor:pointer}
+.day b{font-size:15px;font-weight:700}
+main{padding:14px 12px 40px;max-width:760px;margin:0 auto}
+.store{background:var(--card);border-radius:14px;padding:14px;margin-bottom:14px;
+       box-shadow:0 1px 2px rgba(20,30,50,.07)}
+.storehd{display:flex;align-items:center;flex-wrap:wrap;gap:9px}
+.storehd h2{margin:0;font-size:18px;font-weight:800}
+.tag{border-radius:999px;padding:3px 10px;font-size:12.5px;font-weight:700}
+.tag.red{background:var(--redbg);color:var(--red)}
+.tag.amber{background:var(--amberbg);color:var(--amber)}
+.tag.good{background:var(--goodbg);color:var(--good)}
+.meta{color:var(--dim);font-size:13px;margin-top:5px}
+.leg{margin-top:14px}
+.legname{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);margin-bottom:7px}
+.taxi{border-left:5px solid var(--line);border-radius:9px;background:#fafbfd;
+      padding:11px 13px;margin-bottom:9px;cursor:pointer}
+.taxi.red{border-left-color:var(--red);background:var(--redbg)}
+.taxi .t1{font-weight:700;font-size:15px}
+.taxi .big{font-size:25px;font-weight:800;margin:3px 0 1px}
+.taxi .t2{color:var(--dim);font-size:13px}
+.names{display:none;margin-top:9px;padding-top:9px;border-top:1px solid var(--line);
+       font-size:13.5px;line-height:1.75;color:#2c3444}
+.taxi.open .names{display:block}
+.names .nc{color:var(--dim)}
+.nocard{color:var(--red);font-weight:700}
+.empty{color:var(--dim);font-size:14px;padding:6px 2px}
+.err{background:#fff;border-left:5px solid var(--red);border-radius:9px;padding:13px;color:var(--red)}
+footer{color:var(--dim);font-size:12.5px;text-align:center;padding:0 16px 28px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Staff transport</h1>
+  <div class="sub" id="lede">Loading…</div>
+  <div class="day">
+    <button id="prev" aria-label="Previous day">‹</button>
+    <b id="dayLabel">—</b>
+    <button id="next" aria-label="Next day">›</button>
+  </div>
+  <div class="chips" id="storeChips"></div>
+</header>
+
+<main id="out"><div class="empty">Loading…</div></main>
+<footer id="foot"></footer>
+<script>
+/* ------------------------------------------------------------------
+   Who went home last night, and on how many taxis.
+
+   Everything is read live from the Staff Transport sheet through the
+   same web app the boarding board uses, so this page holds no data of
+   its own - open it, and it shows whatever the guards recorded.
+
+   A taxi is a distinct vehicle number on a date and leg. That is the
+   same test the board's report uses, so the two cannot disagree.
+   ------------------------------------------------------------------ */
+
+var P = new URLSearchParams(location.search);
+var API = P.get("api") || "";
+
+/* SPAR store first, its TOPS under it - the house order. */
+var STORES = [
+  { code:"ZSS", name:"Zevenwacht SUPERSPAR", colour:"#1D75BD" },
+  { code:"KSS", name:"Kuilsriver SUPERSPAR", colour:"#0F7B5A" },
+  { code:"LKS", name:"Langverwacht KWIKSPAR", colour:"#B4530A" }
+];
+
+/* What each store should put on the road. Mirrors the figures the
+   follow-up email judges against - keep the two in step. 0 = Sunday. */
+var EXPECT = {
+  ZSS:{ am:1, pm:{0:6,1:5,2:5,3:5,4:5,5:6,6:6} },
+  KSS:{ am:0, pm:{0:3,1:3,2:3,3:3,4:3,5:3,6:3} },
+  LKS:{ am:1, pm:{0:1,1:1,2:1,3:1,4:1,5:1,6:1} }
+};
+/* Nothing before a store went live is judged. */
+var LIVE_FROM = { LKS:"2026-10-19", KSS:"2026-10-20", ZSS:"2026-10-22" };
+
+var pick = P.get("store") || "ALL";
+var day  = P.get("date") || todayKey();
+var DATA = {};
+
+function todayKey(){
+  var d = new Date();
+  return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+}
+function pad(n){ return (n<10?"0":"")+n; }
+function human(k){ var p=k.split("-"); return p[2]+"/"+p[1]+"/"+p[0]; }
+function shift(k, n){
+  var p=k.split("-").map(Number);
+  var d=new Date(p[0], p[1]-1, p[2]+n);
+  return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+}
+function dow(k){ var p=k.split("-").map(Number); return new Date(p[0],p[1]-1,p[2]).getDay(); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
+
+/* 03:00-11:59 is the morning run, everything else the night run. */
+function legOf(t){
+  var m=/^(\d{1,2}):/.exec(String(t||""));
+  var h=m?+m[1]:-1;
+  return (h>=3 && h<12) ? "am" : "pm";
+}
+
+var jsonpN = 0;
+function jsonp(url, ms){
+  return new Promise(function(resolve, reject){
+    var cb = "__tx" + (++jsonpN) + "_" + Date.now();
+    var s  = document.createElement("script");
+    var done = false;
+    var timer = setTimeout(function(){
+      if(done) return; done = true;
+      cleanup(); reject(new Error("timed out"));
+    }, ms || 20000);
+    function cleanup(){ try{ delete window[cb]; }catch(e){ window[cb]=undefined; }
+                        if(s.parentNode) s.parentNode.removeChild(s); clearTimeout(timer); }
+    window[cb] = function(d){ if(done) return; done = true; cleanup(); resolve(d); };
+    s.onerror = function(){ if(done) return; done = true; cleanup(); reject(new Error("could not reach the sheet")); };
+    s.src = url + "&callback=" + cb;
+    document.body.appendChild(s);
+  });
+}
+
+function load(){
+  if(!API){
+    document.getElementById("out").innerHTML =
+      '<div class="err">This link is missing the sheet address. Use the full link from your transport links page.</div>';
+    document.getElementById("lede").textContent = "Not connected";
+    return;
+  }
+  document.getElementById("out").innerHTML = '<div class="empty">Loading…</div>';
+  var jobs = STORES.map(function(st){
+    return jsonp(API + "?api=trips&store=" + encodeURIComponent(st.code) +
+                 "&from=" + day + "&to=" + day)
+      .then(function(d){ return { code:st.code, rows:(d && d.rows) || [] }; })
+      .catch(function(e){ return { code:st.code, rows:null, err:e.message }; });
+  });
+  Promise.all(jobs).then(function(res){
+    DATA = {};
+    res.forEach(function(r){ DATA[r.code] = r; });
+    draw();
+  });
+}
+
+/* Group a store's rows into taxis: one per vehicle, per leg. */
+function taxisOf(rows){
+  var by = {};
+  rows.forEach(function(r){
+    var leg = legOf(r["Boarded At"]);
+    var veh = String(r["Vehicle"] == null ? "" : r["Vehicle"]);
+    var k = leg + "|" + veh;
+    if(!by[k]) by[k] = { leg:leg, veh:veh, people:[], dirs:{}, guard:"", first:"", last:"" };
+    var t = by[k];
+    t.people.push(r);
+    if(r["Direction"]) t.dirs[r["Direction"]] = 1;
+    if(r["Guard"]) t.guard = r["Guard"];
+    var at = String(r["Boarded At"]||"");
+    if(at){ if(!t.first || at < t.first) t.first = at;
+            if(!t.last  || at > t.last ) t.last  = at; }
+  });
+  return Object.keys(by).map(function(k){ return by[k]; });
+}
+
+function draw(){
+  var head = document.getElementById("storeChips");
+  head.innerHTML = "";
+  [{code:"ALL",name:"All stores"}].concat(STORES).forEach(function(s){
+    var b=document.createElement("button");
+    b.className="chip"+(pick===s.code?" on":"");
+    b.textContent=s.name;
+    b.onclick=function(){ pick=s.code; draw(); };
+    head.appendChild(b);
+  });
+
+  document.getElementById("dayLabel").textContent = human(day);
+  document.getElementById("lede").textContent =
+    "How many went home, on how many taxis \u00b7 tap a taxi for the names";
+
+  var out = document.getElementById("out");
+  out.innerHTML = "";
+  var show = STORES.filter(function(s){ return pick==="ALL" || pick===s.code; });
+  var totalP = 0, totalT = 0;
+
+  show.forEach(function(st){
+    var d = DATA[st.code] || {};
+    var card = document.createElement("section");
+    card.className = "store";
+
+    if(d.rows === null){
+      card.innerHTML = '<div class="storehd"><h2 style="color:'+st.colour+'">'+esc(st.name)+'</h2></div>'+
+                       '<div class="meta" style="color:var(--red)">Could not load: '+esc(d.err||"")+'</div>';
+      out.appendChild(card); return;
+    }
+
+    var rows = d.rows || [];
+    var taxis = taxisOf(rows);
+    var people = {};
+    rows.forEach(function(r){ people[legOf(r["Boarded At"])+"|"+r["Employee Code"]] = 1; });
+    var nPeople = Object.keys(people).length;
+    var nTaxis  = taxis.length;
+    totalP += nPeople; totalT += nTaxis;
+
+    var live = day >= (LIVE_FROM[st.code] || "0000-00-00");
+    var exp  = EXPECT[st.code] || {am:0,pm:{}};
+    var want = (exp.am||0) + (exp.pm ? (exp.pm[dow(day)]||0) : 0);
+    var cls  = (!live || !want) ? "good" : (nTaxis >= want ? "good" : "red");
+
+    var h = '<div class="storehd"><h2 style="color:'+st.colour+'">'+esc(st.name)+'</h2>'+
+            '<span class="tag '+cls+'">'+nTaxis+(live&&want?(" of "+want):"")+' taxi'+(nTaxis===1?"":"s")+'</span>'+
+            '<span class="tag good">'+nPeople+' aboard</span></div>';
+    h += '<div class="meta">'+ (live ? "" : "not live on this date \u00b7 ") +
+         (nTaxis ? "" : "nothing recorded") + '</div>';
+
+    ["am","pm"].forEach(function(leg){
+      var list = taxis.filter(function(t){ return t.leg===leg; })
+                      .sort(function(a,b){ return (a.first||"").localeCompare(b.first||""); });
+      if(!list.length) return;
+      h += '<div class="leg"><div class="legname">'+(leg==="am"?"Morning run":"Night run")+'</div>';
+      list.forEach(function(t){
+        var dirs = Object.keys(t.dirs).sort().join(", ") || "\u2014";
+        var when = t.first===t.last ? t.first : (t.first+" \u2013 "+t.last);
+        var noCard = t.people.filter(function(r){
+          var how=String(r["How"]||"").toLowerCase(); return how && how!=="card"; }).length;
+        h += '<div class="taxi" onclick="this.classList.toggle(\'open\')">'+
+               '<div class="t1">Taxi '+esc(t.veh)+' \u00b7 '+esc(dirs)+'</div>'+
+               '<div class="big">'+t.people.length+' aboard</div>'+
+               '<div class="t2">'+esc(when)+(t.guard?(' \u00b7 '+esc(t.guard)):'')+
+                 (noCard?(' \u00b7 <span class="nocard">'+noCard+' without a card</span>'):'')+'</div>'+
+               '<div class="names">'+
+                 t.people.sort(function(a,b){
+                   return String(a["Boarded At"]).localeCompare(String(b["Boarded At"])); })
+                  .map(function(r){
+                    var how=String(r["How"]||"").toLowerCase();
+                    return '<div>'+esc(r["Employee Name"])+
+                           ' <span class="nc">'+esc(r["Boarded At"])+
+                           (how && how!=="card" ? ' \u00b7 no card' : '')+'</span></div>'; }).join("")+
+               '</div>'+
+             '</div>';
+      });
+      h += '</div>';
+    });
+
+    card.innerHTML = h;
+    out.appendChild(card);
+  });
+
+  if(!show.length) out.innerHTML = '<div class="empty">No store selected.</div>';
+  document.getElementById("foot").textContent =
+    totalT + " taxi" + (totalT===1?"":"s") + " \u00b7 " + totalP + " people \u00b7 " + human(day);
+}
+
+document.getElementById("prev").onclick = function(){ day = shift(day,-1); load(); };
+document.getElementById("next").onclick = function(){ day = shift(day, 1); load(); };
+
+load();
+</script>
+</body>
+</html>
